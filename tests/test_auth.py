@@ -22,7 +22,7 @@ endpoints = [
 def test_403_no_auth_header(test_client, method, path):
     r = test_client.request(method, path)
 
-    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert r.status_code == status.HTTP_401_UNAUTHORIZED
     assert detail_of(r) == "Not authenticated"
 
 
