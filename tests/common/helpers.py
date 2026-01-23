@@ -1,4 +1,5 @@
 import random
+import string
 import time
 import uuid
 from typing import Callable
@@ -72,3 +73,10 @@ def next_ecdh_keypair_bytes():
             format=serialization.PublicFormat.SubjectPublicKeyInfo,
         ),
     )
+
+
+def next_random_string(charset=string.ascii_letters, length: int = 20):
+    assert length > 0
+    assert len(charset) > 0
+
+    return "".join([random.choice(charset) for _ in range(length)])
