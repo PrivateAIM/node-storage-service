@@ -14,7 +14,7 @@ from project.routers.local import (
     LocalTaggedResultListResponse,
 )
 from tests.common.auth import BearerAuth, issue_client_access_token
-from tests.common.helpers import next_random_bytes, eventually, next_prefixed_name
+from tests.common.helpers import next_random_bytes, eventually, next_prefixed_name, next_random_string
 from tests.common.rest import wrap_bytes_for_request, detail_of
 from tests.common.env import hub_adapter_client_id
 
@@ -193,3 +193,58 @@ def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgre
     with crud.bind_to(postgres):
         assert len(crud.Result.select().where(crud.Result.client_id == analysis.id)) == 0
         assert len(crud.Tag.select().where(crud.Tag.project_id == project.id)) == 0
+
+
+def test_tag_existing_object(test_client, minio_object, project_id, analysis_id, postgres):
+    object_id = minio_object.object_name.split("/")[-1]
+    filename = next_random_string()
+    tag_name = next_random_string(charset=string.ascii_lowercase)
+
+    r = test_client.post(
+        "/local/tags",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        params={"tag_name": tag_name, "object_id": object_id, "filename": filename},
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+    with crud.bind_to(postgres):
+        results = crud.Result.select().where(
+            (crud.Result.object_id == object_id) & (crud.Result.client_id == analysis_id)
+        )
+        assert len(results) == 1
+        assert results[0].filename == filename
+        tags = crud.Tag.select().where((crud.Tag.project_id == project_id) & (crud.Tag.tag_name == tag_name))
+        assert len(tags) == 1
+
+        # For the next test.
+        n_results = crud.Result.select().count()
+        n_tags = crud.Tag.select().count()
+        n_tagged_results = crud.TaggedResult.select().count()
+
+    # The same request should not produce new database entries.
+    r = test_client.post(
+        "/local/tags",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        params={"tag_name": tag_name, "object_id": object_id, "filename": filename},
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+    with crud.bind_to(postgres):
+        assert n_results == crud.Result.select().count()
+        assert n_tags == crud.Tag.select().count()
+        assert n_tagged_results == crud.TaggedResult.select().count()
+
+    # There is already an entry with object_id and analysis_id, but with a different filename. Since this produces a
+    # database integrity error, a bad request should be returned.
+    new_filename = next_random_string()
+    r = test_client.post(
+        "/local/tags",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        params={"tag_name": tag_name, "object_id": object_id, "filename": new_filename},
+    )
+
+    assert r.status_code == status.HTTP_400_BAD_REQUEST
+    assert detail_of(r) == (
+        f"The object ID {object_id} is already persisted for analysis {analysis_id}, but with a different filename "
+        f"than {new_filename}."
+    )

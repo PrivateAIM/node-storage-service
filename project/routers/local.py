@@ -1,5 +1,6 @@
 import logging
 import re
+from urllib3.response import HTTPResponse
 import uuid
 from typing import Annotated
 
@@ -30,6 +31,35 @@ _TAG_PATTERN = re.compile(r"[a-z0-9]{1,2}|[a-z0-9][a-z0-9-]{,30}[a-z0-9]")
 
 def is_valid_tag(tag: str) -> bool:
     return _TAG_PATTERN.fullmatch(tag) is not None
+
+
+def tag_object(
+    tag: str,
+    db: pw.PostgresqlDatabase,
+    project_id: uuid.UUID | str,
+    client_id: str,
+    object_id: uuid.UUID | str,
+    filename: str = None,
+):
+    if not is_valid_tag(tag):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid tag `{tag}`")
+
+    with crud.bind_to(db):
+        # TODO more elegant solution for filename being None?
+        try:
+            result, _ = crud.Result.get_or_create(
+                client_id=client_id,
+                object_id=object_id,
+                filename=filename or "data.bin",
+            )
+        except pw.IntegrityError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"The object ID {object_id} is already persisted for analysis {client_id}, but with a different "
+                f"filename than {filename or 'data.bin'}.",
+            )
+        tag, _ = crud.Tag.get_or_create(tag_name=tag, project_id=project_id)
+        crud.TaggedResult.get_or_create(tag=tag, result=result)
 
 
 class LocalUploadResponse(BaseModel):
@@ -66,6 +96,32 @@ def _get_project_id_for_analysis_or_raise(core_client: flame_hub.CoreClient, ana
     return str(analysis.project_id)
 
 
+def _get_object_from_s3(
+    minio: Minio, settings: Settings, project_id: str, object_id: uuid.UUID, client_id: str
+) -> HTTPResponse:
+    try:
+        return minio.get_object(
+            settings.minio.bucket,
+            f"local/{project_id}/{object_id}",
+        )
+    except S3Error as e:
+        logger.exception(
+            f"Could not get object `{object_id}` for client `{client_id}` which is associated to project "
+            f"`{project_id}`."
+        )
+
+        if e.code == "NoSuchKey":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Object with ID {object_id} does not exist",
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unexpected error from object store",
+        )
+
+
 @router.put(
     "/",
     response_model=LocalUploadResponse,
@@ -86,20 +142,17 @@ async def submit_intermediate_result_to_local(
     Returns a 200 on success.
     This endpoint uploads the file and returns a link with which it can be retrieved.
     An optional tag can be supplied to group the file with other files."""
-    has_tag = tag is not None
-
-    if has_tag:
-        if not is_valid_tag(tag):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid tag `{tag}`",
-            )
 
     # retrieve project id from analysis
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
     object_id = uuid.uuid4()
     object_name = f"local/{project_id}/{object_id}"
+
+    if tag is not None:
+        tag_object(
+            tag=tag, db=db, project_id=project_id, client_id=client_id, object_id=object_id, filename=file.filename
+        )
 
     minio.put_object(
         settings.minio.bucket,
@@ -108,17 +161,6 @@ async def submit_intermediate_result_to_local(
         length=file.size,
         content_type=file.content_type or "application/octet-stream",
     )
-
-    if has_tag:
-        with crud.bind_to(db):
-            tag, _ = crud.Tag.get_or_create(tag_name=tag, project_id=project_id)
-            # TODO more elegant solution for filename being None?
-            result = crud.Result.create(
-                client_id=client_id,
-                object_id=object_id,
-                filename=file.filename or "data.bin",
-            )
-            crud.TaggedResult.create(tag=tag, result=result)
 
     return LocalUploadResponse(
         url=str(
@@ -203,6 +245,45 @@ async def get_project_tags(
     )
 
 
+@router.post(
+    "/tags",
+    summary="Tag an existing object",
+    operation_id="tagObject",
+    response_model=LocalTaggedResult,
+)
+async def create_object_tag(
+    tag_name: str,
+    object_id: uuid.UUID,
+    client_id: Annotated[str, Depends(get_client_id)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    db: Annotated[pw.PostgresqlDatabase, Depends(get_postgres_db)],
+    minio: Annotated[Minio, Depends(get_local_minio)],
+    core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
+    request: Request,
+    filename: str | None = None,
+):
+    """Tag a specific object and return that file.
+    Returns a 200 on success."""
+    project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
+
+    # Check if an object with that ID exists.
+    _get_object_from_s3(minio, settings, project_id, object_id, client_id)
+
+    tag_object(tag_name, db, project_id, client_id, object_id, filename)
+
+    with crud.bind_to(db):
+        result = (
+            crud.Result.select()
+            .where((crud.Result.object_id == object_id) & (crud.Result.client_id == client_id))
+            .get()
+        )
+
+    return LocalTaggedResult(
+        filename=result.filename,
+        url=str(request.url_for("retrieve_intermediate_result_from_local", object_id=object_id)),
+    )
+
+
 @router.get(
     "/tags/{tag_name}",
     summary="Get results linked to a specific tag",
@@ -261,27 +342,7 @@ async def retrieve_intermediate_result_from_local(
     # retrieve project id from analysis
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
-    try:
-        response = minio.get_object(
-            settings.minio.bucket,
-            f"local/{project_id}/{object_id}",
-        )
-    except S3Error as e:
-        logger.exception(
-            f"Could not get object `{object_id}` for client `{client_id}` which is associated to project "
-            f"`{project_id}`."
-        )
-
-        if e.code == "NoSuchKey":
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Object with ID {object_id} does not exist",
-            )
-
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Unexpected error from object store",
-        )
+    response = _get_object_from_s3(minio, settings, project_id, object_id, client_id)
 
     return StreamingResponse(
         response,

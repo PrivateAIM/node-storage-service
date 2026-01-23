@@ -1,3 +1,4 @@
+from io import BytesIO
 import os
 import random
 import ssl
@@ -23,6 +24,8 @@ from tests.common.auth import get_oid_test_jwk, get_test_ecdh_keypair
 from tests.common.helpers import (
     next_prefixed_name,
     eventually,
+    next_random_bytes,
+    next_uuid,
 )
 
 
@@ -310,3 +313,15 @@ def realm_id(auth_client):
     assert len(realm_list) == 1
 
     yield realm_list.pop()
+
+
+@pytest.fixture
+def minio_object(minio, rng, project_id):
+    blob = next_random_bytes(rng)
+    object_name = next_uuid()
+    bucket = os.environ.get("MINIO__BUCKET")
+    obj = minio.put_object(
+        bucket_name=bucket, object_name=f"local/{project_id}/{object_name}", data=BytesIO(blob), length=len(blob)
+    )
+    yield obj
+    minio.remove_object(bucket_name=bucket, object_name=obj.object_name)
