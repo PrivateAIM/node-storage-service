@@ -3,7 +3,8 @@ name = "flame-result-service"
 version = "0.1.4"
 description = "Service for handling intermediate files and submitting result files to the FLAME Hub."
 authors = [
-    {name = "Maximilian Jugl", email="Maximilian.Jugl@medizin.uni-leipzig.de"}
+    {name = "Maximilian Jugl", email="Maximilian.Jugl@medizin.uni-leipzig.de"},
+    {name = "Paul Brassel", email="Paul.Brassel@medizin.uni-leipzig.de"}
 ]
 readme = "README.md"
 requires-python = ">=3.10,<4"
