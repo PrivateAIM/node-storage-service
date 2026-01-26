@@ -1,4 +1,3 @@
-import random
 import string
 import uuid
 import os
@@ -53,7 +52,7 @@ def test_is_valid_tag(pattern, expected):
 
 def test_200_create_tagged_upload(test_client, rng, analysis_id, project_id, core_client, minio, postgres):
     # use global random here to generate different tags for each run
-    tag = "".join(random.choices(string.ascii_lowercase, k=16))
+    tag = next_random_string(charset=string.ascii_lowercase)
     filename = str(uuid.uuid4())
     blob = next_random_bytes(rng)
     auth = BearerAuth(issue_client_access_token(analysis_id))
@@ -168,7 +167,7 @@ def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgre
     assert eventually(_project_and_analysis_exist)
 
     blob = next_random_bytes(rng)
-    tag = "".join(random.choices(string.ascii_lowercase, k=16))
+    tag = next_random_string(charset=string.ascii_lowercase)
     test_client.put(
         "/local",
         auth=BearerAuth(issue_client_access_token(analysis.id)),
@@ -248,3 +247,40 @@ def test_tag_existing_object(test_client, minio_object, project_id, analysis_id,
         f"The object ID {object_id} is already persisted for analysis {analysis_id}, but with a different filename "
         f"than {new_filename}."
     )
+
+
+def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
+    blob = next_random_bytes(rng)
+    tag_name = next_random_string(charset=string.ascii_lowercase)
+    filename = next_random_string()
+    r = test_client.put(
+        "/local",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        files=wrap_bytes_for_request(blob, file_name=filename),
+        data={"tag": tag_name},
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+
+    model = LocalUploadResponse(**r.json())
+
+    r = test_client.put(
+        "/local/upload",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        params={"object_id": model.object_id},
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+
+    bucket_files = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id})
+
+    assert len(bucket_files) == 1
+    assert bucket_files[0].name == filename
+
+    r = test_client.get(
+        model.url.path,
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+    assert r.read() == blob
