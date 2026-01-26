@@ -247,3 +247,41 @@ def test_tag_existing_object(test_client, minio_object, project_id, analysis_id,
         f"The object ID {object_id} is already persisted for analysis {analysis_id}, but with a different filename "
         f"than {new_filename}."
     )
+
+
+def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
+    blob = next_random_bytes(rng)
+    tag_name = next_random_string(charset=string.ascii_lowercase)
+    filename = next_random_string()
+    r = test_client.put(
+        "/local",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        files=wrap_bytes_for_request(blob, file_name=filename),
+        data={"tag": tag_name},
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+
+    model = LocalUploadResponse(**r.json())
+    object_id = str(model.url).split("/")[-1]
+
+    r = test_client.put(
+        "/local/upload",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        params={"object_id": object_id},
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+
+    bucket_files = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id})
+
+    assert len(bucket_files) == 1
+    assert bucket_files[0].name == filename
+
+    r = test_client.get(
+        model.url.path,
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+    assert r.read() == blob

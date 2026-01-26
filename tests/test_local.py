@@ -192,3 +192,38 @@ def test_200_delete_results(test_client, core_client, rng, minio, postgres):
         assert len(crud.Result.select()) == n_results
         assert len(crud.Tag.select()) == n_tags
         assert len(crud.TaggedResult.select()) == n_tagged_results
+
+
+def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
+    blob = next_random_bytes(rng)
+    r = test_client.put(
+        "/local",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        files=wrap_bytes_for_request(blob),
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+
+    model = LocalUploadResponse(**r.json())
+    object_id = str(model.url).split("/")[-1]
+
+    r = test_client.put(
+        "/local/upload",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        params={"object_id": object_id},
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+
+    bucket_files = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id})
+
+    assert len(bucket_files) == 1
+    assert bucket_files[0].name == object_id
+
+    r = test_client.get(
+        model.url.path,
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+    )
+
+    assert r.status_code == status.HTTP_200_OK
+    assert r.read() == blob
