@@ -1,3 +1,4 @@
+import io
 import logging
 import re
 from urllib3.response import HTTPResponse
@@ -7,6 +8,7 @@ from typing import Annotated
 import flame_hub
 import peewee as pw
 from fastapi import Depends, UploadFile, APIRouter, HTTPException, File, Form
+from cryptography.hazmat.primitives.asymmetric import ec
 from minio import Minio, S3Error
 from pydantic import BaseModel, HttpUrl, Field
 from starlette import status
@@ -21,7 +23,10 @@ from project.dependencies import (
     get_local_minio,
     get_postgres_db,
     get_core_client,
+    get_storage_client,
+    get_ecdh_private_key,
 )
+from project.routers.intermediate import IntermediateUploadResponse, submit_intermediate_result_to_hub
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -347,4 +352,55 @@ async def retrieve_intermediate_result_from_local(
     return StreamingResponse(
         response,
         media_type=response.headers.get("Content-Type", "application/octet-stream"),
+    )
+
+
+@router.put(
+    "/upload",
+    summary="Upload a local file directly to the Hub",
+    operation_id="uploadLocalFile",
+    response_model=IntermediateUploadResponse,
+)
+async def upload_local_file(
+    object_id: uuid.UUID,
+    request: Request,
+    client_id: Annotated[str, Depends(get_client_id)],
+    minio: Annotated[Minio, Depends(get_local_minio)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
+    storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
+    db: Annotated[pw.PostgresqlDatabase, Depends(get_postgres_db)],
+    private_key: Annotated[ec.EllipticCurvePrivateKey, Depends(get_ecdh_private_key)],
+    remote_node_id: Annotated[str | None, Form()] = None,
+):
+    """Upload a local file directly to the FLAME Hub so that the requesting service does not have to load the file in
+    its working memory to use the intermediate upload endpoint. Returns a 200 on success. This endpoint returns a link
+    with which it can be retrieved."""
+
+    # Retrieve project id from analysis.
+    project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
+
+    response = _get_object_from_s3(minio, settings, project_id, object_id, client_id)
+
+    # Check for filename in database. If there is no filename, use object_id per default.
+    filename = str(object_id)
+    with crud.bind_to(db):
+        result = crud.Result.select().where((crud.Result.object_id == object_id) & (crud.Result.client_id == client_id))
+        if result.count() == 1:
+            filename = result.get().filename
+
+    file = UploadFile(
+        file=io.BytesIO(response.read()),
+        filename=filename,
+        headers=response.headers,
+    )
+
+    return await submit_intermediate_result_to_hub(
+        file=file,
+        request=request,
+        client_id=client_id,
+        core_client=core_client,
+        storage_client=storage_client,
+        private_key=private_key,
+        remote_node_id=remote_node_id,
     )
