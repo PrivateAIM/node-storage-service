@@ -263,12 +263,11 @@ def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
     assert r.status_code == status.HTTP_200_OK
 
     model = LocalUploadResponse(**r.json())
-    object_id = str(model.url).split("/")[-1]
 
     r = test_client.put(
         "/local/upload",
         auth=BearerAuth(issue_client_access_token(analysis_id)),
-        params={"object_id": object_id},
+        params={"object_id": model.object_id},
     )
 
     assert r.status_code == status.HTTP_200_OK

@@ -69,6 +69,7 @@ def tag_object(
 
 class LocalUploadResponse(BaseModel):
     url: HttpUrl
+    object_id: uuid.UUID
 
 
 class LocalTag(BaseModel):
@@ -168,12 +169,13 @@ async def submit_intermediate_result_to_local(
     )
 
     return LocalUploadResponse(
+        object_id=object_id,
         url=str(
             request.url_for(
                 "retrieve_intermediate_result_from_local",
                 object_id=object_id,
             )
-        )
+        ),
     )
 
 

@@ -205,12 +205,11 @@ def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
     assert r.status_code == status.HTTP_200_OK
 
     model = LocalUploadResponse(**r.json())
-    object_id = str(model.url).split("/")[-1]
 
     r = test_client.put(
         "/local/upload",
         auth=BearerAuth(issue_client_access_token(analysis_id)),
-        params={"object_id": object_id},
+        params={"object_id": model.object_id},
     )
 
     assert r.status_code == status.HTTP_200_OK
@@ -218,7 +217,7 @@ def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
     bucket_files = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id})
 
     assert len(bucket_files) == 1
-    assert bucket_files[0].name == object_id
+    assert bucket_files[0].name == str(model.object_id)
 
     r = test_client.get(
         model.url.path,
