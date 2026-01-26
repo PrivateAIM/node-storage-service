@@ -1,4 +1,3 @@
-import random
 import string
 import uuid
 import os
@@ -53,7 +52,7 @@ def test_is_valid_tag(pattern, expected):
 
 def test_200_create_tagged_upload(test_client, rng, analysis_id, project_id, core_client, minio, postgres):
     # use global random here to generate different tags for each run
-    tag = "".join(random.choices(string.ascii_lowercase, k=16))
+    tag = next_random_string(charset=string.ascii_lowercase)
     filename = str(uuid.uuid4())
     blob = next_random_bytes(rng)
     auth = BearerAuth(issue_client_access_token(analysis_id))
@@ -168,7 +167,7 @@ def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgre
     assert eventually(_project_and_analysis_exist)
 
     blob = next_random_bytes(rng)
-    tag = "".join(random.choices(string.ascii_lowercase, k=16))
+    tag = next_random_string(charset=string.ascii_lowercase)
     test_client.put(
         "/local",
         auth=BearerAuth(issue_client_access_token(analysis.id)),
