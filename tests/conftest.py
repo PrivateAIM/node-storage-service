@@ -78,9 +78,9 @@ def override_postgres(use_testcontainers, postgres):
 def minio(use_testcontainers):
     access_key = os.environ.get("MINIO__ACCESS_KEY")
     secret_key = os.environ.get("MINIO__SECRET_KEY")
+    bucket = os.environ.get("MINIO__BUCKET")
 
     if use_testcontainers:
-        bucket = os.environ.get("MINIO__BUCKET")
         with MinioContainer(
             "minio/minio:RELEASE.2024-12-13T22-19-12Z",
             access_key=access_key,
@@ -93,7 +93,10 @@ def minio(use_testcontainers):
         endpoint = os.environ.get("MINIO__ENDPOINT")
         region = os.environ.get("MINIO__REGION")
         secure = bool(int(os.environ.get("MINIO__USE_SSL")))
-        return Minio(endpoint, access_key=access_key, secret_key=secret_key, region=region, secure=secure)
+        minio = Minio(endpoint, access_key=access_key, secret_key=secret_key, region=region, secure=secure)
+        if not minio.bucket_exists(bucket):
+            minio.make_bucket(bucket)
+        return minio
 
 
 @pytest.fixture(scope="package")
