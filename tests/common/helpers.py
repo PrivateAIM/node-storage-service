@@ -20,6 +20,7 @@ def eventually(predicate: Callable[[], bool]) -> bool:
     for _ in range(max_retries):
         if not predicate():
             time.sleep(delay_secs)
+            continue
 
         return True
 
