@@ -215,12 +215,25 @@ def storage_client(password_auth_client, ssl_context):
     )
 
 
-@pytest.fixture
-def project_id_factory(core_client):
-    project_ids = []
-
+@pytest.fixture(scope="package")
+def master_image(core_client):
     preferred_base_image_name = os.environ.get("PYTEST__PREFERRED_BASE_MASTER_IMAGE", "python/base")
-    master_image = core_client.find_master_images(filter={"path": preferred_base_image_name}).pop()
+    filter_ = {"virtual_path": preferred_base_image_name}
+
+    if len(core_client.find_master_images(filter=filter_)) == 0:
+        core_client.sync_master_images()
+
+    def _wait_for_master_image():
+        return len(core_client.find_master_images(filter=filter_)) == 1
+
+    assert eventually(_wait_for_master_image)
+
+    return core_client.find_master_images(filter=filter_)[0]
+
+
+@pytest.fixture
+def project_id_factory(core_client, master_image):
+    project_ids = []
 
     def _factory():
         project_name = next_prefixed_name()
