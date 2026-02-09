@@ -6,9 +6,9 @@ installing [minikube](https://minikube.sigs.k8s.io/docs/) on your local machine.
 
 To deploy, simply run the following commands.
 
-```
-$ kubectl apply -f ./minio-deployment.yaml
-$ kubectl apply -f ./minio-service.yaml
-$ kubectl apply -f ./node-storage-deployment.yaml
-$ kubectl apply -f ./node-storage-service.yaml
+```bash
+kubectl apply -f ./minio-deployment.yaml
+kubectl apply -f ./minio-service.yaml
+kubectl apply -f ./node-storage-deployment.yaml
+kubectl apply -f ./node-storage-service.yaml
 ```
