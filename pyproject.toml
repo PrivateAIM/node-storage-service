@@ -1,5 +1,5 @@
 [project]
-name = "flame-result-service"
+name = "flame-storage-service"
 version = "0.1.4"
 description = "Service for handling intermediate files and submitting result files to the FLAME Hub."
 authors = [
@@ -25,7 +25,7 @@ dependencies = [
 license = "Apache-2.0"
 
 [project.scripts]
-flame-result = "project.main:run_server"
+flame-storage = "project.main:run_server"
 
 [tool.poetry]
 packages = [{ include = "project" }]

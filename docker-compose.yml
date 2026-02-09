@@ -29,7 +29,7 @@ services:
     volumes:
       - ./docker/keycloak/import:/opt/keycloak/data/import
 
-  node-result-service:
+  node-storage-service:
     build: .
     depends_on:
       - minio

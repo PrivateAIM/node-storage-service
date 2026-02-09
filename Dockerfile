@@ -11,8 +11,8 @@ RUN set -ex && \
 
 FROM python@sha256:323a717dc4a010fee21e3f1aac738ee10bb485de4e7593ce242b36ee48d6b352
 
-LABEL org.opencontainers.image.source=https://github.com/PrivateAIM/node-result-service
-LABEL org.opencontainers.image.description="Service that handles result files for federated analyses within FLAME."
+LABEL org.opencontainers.image.source=https://github.com/PrivateAIM/node-storage-service
+LABEL org.opencontainers.image.description="Service that handles files for federated analyses within FLAME."
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 
 WORKDIR /app

@@ -402,7 +402,7 @@
           "attributes": {}
         }
       ],
-      "node-result-service": []
+      "node-storage-service": []
     }
   },
   "groups": [],
@@ -461,12 +461,12 @@
   "users": [
     {
       "id": "38570240-19e8-43ad-bc8e-7e6978c8bd60",
-      "username": "service-account-node-result-service",
+      "username": "service-account-node-storage-service",
       "emailVerified": false,
       "createdTimestamp": 1737118128849,
       "enabled": true,
       "totp": false,
-      "serviceAccountClientId": "node-result-service",
+      "serviceAccountClientId": "node-storage-service",
       "disableableCredentialTypes": [],
       "requiredActions": [],
       "realmRoles": [
@@ -688,7 +688,7 @@
     },
     {
       "id": "eea0fe18-bcd8-4429-a038-5870b507b648",
-      "clientId": "node-result-service",
+      "clientId": "node-storage-service",
       "name": "",
       "description": "",
       "rootUrl": "",
