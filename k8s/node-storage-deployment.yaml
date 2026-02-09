@@ -1,41 +1,41 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-node-result-deployment
+  name: node-storage-deployment
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-node-result
+      app: node-storage
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-node-result
+        app: node-storage
     spec:
       containers:
-        - name: {{ .Release.Name }}-node-result-service
-          image: ghcr.io/privateaim/node-result-service:sha-7740b53
+        - name: node-storage-service
+          image: ghcr.io/privateaim/node-storage-storage:sha-f0d2d9c
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
-              name: http-result-srv
+              name: http-storage-srv
           env:
             - name: MINIO__ENDPOINT
-              value: {{ .Release.Name }}-local-minio-service
+              value: local-minio-service:9000
             - name: MINIO__ACCESS_KEY
-              value: {{ required "MinIO user must be set." .Values.env.MINIO_ACCESS_KEY | quote }}
+              value: admin
             - name: MINIO__SECRET_KEY
-              value: {{ required "MinIO password must be set." .Values.env.MINIO_SECRET_KEY | quote }}
+              value: s3cr3t_p4ssw0rd
             - name: MINIO__USE_SSL
-              value: {{ .Values.env.MINIO_USE_SSL | default false | quote }}
+              value: "false"
             - name: MINIO__BUCKET
-              value: {{ required "MinIO bucket must be set." .Values.env.MINIO_BUCKET | quote }}
+              value: flame
             - name: HUB__AUTH_USERNAME
-              value: {{ required "Hub username must be set." .Values.env.HUB_USERNAME | quote }}
+              value: your_hub_username_here
             - name: HUB__AUTH_PASSWORD
-              value: {{ required "Hub password must be set." .Values.env.HUB_PASSWORD | quote }}
+              value: your_hub_password_here
             - name: OIDC__CERTS_URL
-              value: {{ required "OIDC endpoint must be set." .Values.env.OIDC_CERTS_URL | quote }}
+              value: http://keycloak:8080/bla/bla
             # Change this to "1" for testing purposes. This will cause the value of OIDC__CERTS_URL to be
             # ignored. You will still need to set this variable for the service to start up correctly.
             - name: OIDC__SKIP_JWT_VALIDATION
@@ -43,12 +43,12 @@ spec:
           startupProbe:
             httpGet:
               path: /healthz
-              port: http-result-srv
+              port: http-storage-srv
             failureThreshold: 5
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /healthz
-              port: http-result-srv
+              port: http-storage-srv
             failureThreshold: 3
             periodSeconds: 10
