@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: node-result-service
+  name: node-storage-service
 spec:
   type: NodePort  # setting nodePort later is optional
   selector:
-    app: node-result
+    app: node-storage
   ports:
     - protocol: TCP
       port: 8080  # port of this service
-      targetPort: http-result-srv  # port on the pod
+      targetPort: http-storage-srv  # port on the pod

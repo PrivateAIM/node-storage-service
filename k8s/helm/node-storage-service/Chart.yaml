@@ -1,0 +1,6 @@
+apiVersion: v2
+name: flame-storage-service
+description: A Helm Chart for the FLAME Node Storage Service
+type: application
+version: 0.1.0
+appVersion: latest
