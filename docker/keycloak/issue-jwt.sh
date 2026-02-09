@@ -23,10 +23,10 @@ do
   fi
 done
 
-kc_ip_addr="$(docker network inspect node-result-service_default | jq -r '.[0].Containers[] | select(.Name | test("keycloak")) | .IPv4Address' | cut -d'/' -f1)"
+kc_ip_addr="$(docker network inspect node-storage-service_default | jq -r '.[0].Containers[] | select(.Name | test("keycloak")) | .IPv4Address' | cut -d'/' -f1)"
 kc_ip_port="8080"
-kc_client_id="node-result-service"
-kc_client_secret="$(jq -r  '.clients[] | select(.clientId == "node-result-service") | .secret' import/realm-export.json)"
+kc_client_id="node-storage-service"
+kc_client_secret="$(jq -r  '.clients[] | select(.clientId == "node-storage-service") | .secret' import/realm-export.json)"
 
 curl -s -X POST -d "client_id=$kc_client_id" \
   -d "client_secret=$kc_client_secret" \

@@ -1,4 +1,4 @@
-The FLAME Node Result Service is responsible for handling result files for federated analyses within FLAME.
+The FLAME Node Storage Service is responsible for handling result files for federated analyses within FLAME.
 It uses a local object storage to store intermediate files, as well as to enqueue files for upload to the FLAME Hub.
 
 # Setup
@@ -9,18 +9,18 @@ tokens it issues.
 For manual installation, you will need Python 3.10 or higher and [Poetry](https://python-poetry.org/) installed.
 Clone the repository and run `poetry install` in the root directory.
 Create a copy of `.env.example`, name it `.env` and configure to your needs.
-Finally, use the command `flame-result` to start the service.
+Finally, use the command `flame-storage` to start the service.
 
 ```
-$ git clone https://github.com/PrivateAIM/node-result-service.git
-$ cd node-result-service
+$ git clone https://github.com/PrivateAIM/node-storage-service.git
+$ cd node-storage-service
 $ poetry install
 $ cp .env.example .env
 $ poetry shell
-$ flame-result
+$ flame-storage
 ```
 
-To run an ephemeral version of the Node Result Service with all services it needs pre-configured,
+To run an ephemeral version of the Node Storage Service with all services it needs pre-configured,
 simply run `docker compose up -d`.
 You can best explore the API by checking the documentation out at http://localhost:8080/docs.
 To acquire a JWT for use with the API, [use the corresponding script](./docker/keycloak/issue-jwt.sh).
