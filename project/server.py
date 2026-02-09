@@ -72,7 +72,7 @@ def get_server_instance():
     logger = logging.getLogger(__name__)
 
     _app = FastAPI(
-        title="FLAME Node Result Service",
+        title="FLAME Node Storage Service",
         summary=project_data.project.description,
         version=project_data.project.version,
         lifespan=lifespan,

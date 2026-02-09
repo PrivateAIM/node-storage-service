@@ -102,4 +102,4 @@ For testing against a forward proxy, [check the README in the `proxy` directory]
 
 # License
 
-The FLAME Node Result Service is released under the Apache 2.0 license.
+The FLAME Node Storage Service is released under the Apache 2.0 license.
