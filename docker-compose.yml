@@ -39,7 +39,7 @@ services:
       - "HUB__CORE_BASE_URL=https://core.privateaim.dev"
       - "HUB__STORAGE_BASE_URL=https://storage.privateaim.dev"
       - "HUB__AUTH_BASE_URL=https://auth.privateaim.dev"
-      - "HUB__AUTH__FLOW=robot"
+      - "HUB__AUTH__FLOW=client"
       - "HUB__AUTH__ID=${HUB__AUTH__ID}"
       - "HUB__AUTH__SECRET=${HUB__AUTH__SECRET}"
       - "MINIO__ENDPOINT=minio:9000"

@@ -30,11 +30,11 @@ def hub_password_auth_password():
     return __get_env("HUB__AUTH__PASSWORD")
 
 
-def hub_robot_auth_id():
+def hub_client_auth_id():
     return __get_env("HUB__AUTH__ID")
 
 
-def hub_robot_auth_secret():
+def hub_client_auth_secret():
     return __get_env("HUB__AUTH__SECRET")
 
 

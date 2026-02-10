@@ -189,10 +189,10 @@ def password_auth_client(ssl_context):
 
 
 @pytest.fixture(scope="package")
-def robot_auth_client(ssl_context):
-    return flame_hub.auth.RobotAuth(
-        env.hub_robot_auth_id(),
-        env.hub_robot_auth_secret(),
+def client_auth_client(ssl_context):
+    return flame_hub.auth.ClientAuth(
+        env.hub_client_auth_id(),
+        env.hub_client_auth_secret(),
         client=httpx.Client(base_url=env.hub_auth_base_url(), verify=ssl_context),
     )
 

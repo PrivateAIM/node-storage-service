@@ -30,7 +30,7 @@ class OIDCConfig(FrozenBaseModel):
 
 class AuthFlow(str, Enum):
     password = "password"
-    robot = "robot"
+    client = "client"
 
 
 class PasswordAuthConfig(FrozenBaseModel):
@@ -39,8 +39,8 @@ class PasswordAuthConfig(FrozenBaseModel):
     password: str
 
 
-class RobotAuthConfig(FrozenBaseModel):
-    flow: Literal[AuthFlow.robot]
+class ClientAuthConfig(FrozenBaseModel):
+    flow: Literal[AuthFlow.client]
     id: str
     secret: str
 
@@ -50,7 +50,7 @@ class HubConfig(FrozenBaseModel):
     auth_base_url: HttpUrl = "https://auth.privateaim.net"
     storage_base_url: HttpUrl = "https://storage.privateaim.net"
 
-    auth: Annotated[Union[RobotAuthConfig, PasswordAuthConfig], Field(discriminator="flow")]
+    auth: Annotated[Union[ClientAuthConfig, PasswordAuthConfig], Field(discriminator="flow")]
 
 
 class PostgresConfig(FrozenBaseModel):

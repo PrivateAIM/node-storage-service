@@ -36,11 +36,11 @@ The following table shows all available configuration options.
 | HUB__CORE_BASE_URL            | Base URL for the FLAME Core API                                                                 | https://core.privateaim.net    |                |
 | HUB__STORAGE_BASE_URL         | Base URL for the FLAME Storage API                                                              | https://storage.privateaim.net |                |
 | HUB__AUTH_BASE_URL            | Base URL for the FLAME Auth API                                                                 | https://auth.privateaim.net    |                |
-| HUB__AUTH__FLOW               | Authentication flow to use for central FLAME services (`password` or `robot`)                   |                                |       x        |
+| HUB__AUTH__FLOW               | Authentication flow to use for central FLAME services (`password` or `client`)                  |                                |       x        |
 | HUB__AUTH__USERNAME           | Username to use for obtaining access tokens using password auth scheme                          |                                | x<sup>1)</sup> |
 | HUB__AUTH__PASSWORD           | Password to use for obtaining access tokens using password auth scheme                          |                                | x<sup>1)</sup> |
-| HUB__AUTH__ID                 | Robot ID to use for obtaining access tokens using robot credentials auth scheme                 |                                | x<sup>2)</sup> |
-| HUB__AUTH__SECRET             | Robot secret to use for obtaining access tokens using robot credentials auth scheme             |                                | x<sup>2)</sup> |
+| HUB__AUTH__ID                 | Client ID to use for obtaining access tokens using client credentials auth scheme               |                                | x<sup>2)</sup> |
+| HUB__AUTH__SECRET             | Client secret to use for obtaining access tokens using client credentials auth scheme           |                                | x<sup>2)</sup> |
 | MINIO__ENDPOINT               | MinIO S3 API endpoint (without scheme)                                                          |                                |       x        |
 | MINIO__ACCESS_KEY             | Access key for interacting with MinIO S3 API                                                    |                                |       x        |
 | MINIO__SECRET_KEY             | Secret key for interacting with MinIO S3 API                                                    |                                |       x        |
@@ -63,7 +63,7 @@ The following table shows all available configuration options.
 | HUB_ADAPTER_CLIENT_ID         | Keycloak client ID for the Hub Adapter client.                                                  | hub-adapter                    |                |
 
 <sup>1)</sup> Only if `HUB__AUTH__FLOW` is set to `password`  
-<sup>2)</sup> Only if `HUB__AUTH__FLOW` is set to `robot`  
+<sup>2)</sup> Only if `HUB__AUTH__FLOW` is set to `client`  
 <sup>3)</sup> Only if `CRYPTO__PROVIDER` is set to `raw`  
 <sup>4)</sup> Only if `CRYPTO__PROVIDER` is set to `file`  
 <sup>5)</sup> If only one of the two URLs is set, it will be used for both HTTP and HTTPS transport
@@ -94,8 +94,8 @@ CI.
 To run these tests, append `-m live` to the command above.
 To run **all** tests, append `-m "live or not live"`.
 
-The tests expect that robot **and** password credentials are provided in order to test both authentication flows.
-Set `HUB__AUTH__FLOW` to `robot`, but make sure to not only set `HUB__AUTH__ID` and `HUB__AUTH__SECRET`, but also
+The tests expect that client **and** password credentials are provided in order to test both authentication flows.
+Set `HUB__AUTH__FLOW` to `client`, but make sure to not only set `HUB__AUTH__ID` and `HUB__AUTH__SECRET`, but also
 `HUB__AUTH__USERNAME` and `HUB__AUTH__PASSWORD`.
 
 For testing against a forward proxy, [check the README in the `proxy` directory](./proxy/README.md).

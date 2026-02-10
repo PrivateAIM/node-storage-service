@@ -44,9 +44,9 @@ jobs:
           MINIO__SECRET_KEY: ${{env.MINIO_ROOT_PASSWORD}}
           MINIO__BUCKET: ${{env.MINIO_LOCAL_BUCKET_NAME}}
           MINIO__ENDPOINT: localhost:9000
-          HUB__AUTH__FLOW: robot
-          HUB__AUTH__ID: ${{secrets.HUB_ROBOT_ID}}
-          HUB__AUTH__SECRET: ${{secrets.HUB_ROBOT_SECRET}}
+          HUB__AUTH__FLOW: client
+          HUB__AUTH__ID: ${{secrets.HUB_CLIENT_ID}}
+          HUB__AUTH__SECRET: ${{secrets.HUB_CLIENT_SECRET}}
           POSTGRES__HOST: localhost
           POSTGRES__USER: ${{env.POSTGRES_USER}}
           POSTGRES__PASSWORD: ${{env.POSTGRES_PASSWORD}}
