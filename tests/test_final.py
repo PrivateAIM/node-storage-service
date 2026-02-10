@@ -1,5 +1,6 @@
 import uuid
 
+from flame_hub.types import AnalysisBucketType
 import pytest
 from starlette import status
 
@@ -30,7 +31,8 @@ def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client,
 
     # retrieve result and see if it returned a file with single number
     uploaded_files = core_client.find_analysis_bucket_files(
-        filter={"analysis_id": analysis_id, "type": "RESULT"}, sort={"by": "created_at", "order": "descending"}
+        filter={"analysis_id": analysis_id, "type": AnalysisBucketType.RESULT},
+        sort={"by": "created_at", "order": "descending"},
     )
 
     assert len(uploaded_files) > 0, "Hub should return at least one result file"
@@ -52,7 +54,8 @@ def test_200_submit_to_upload(test_client, rng, core_client, storage_client, ana
     assert r.status_code == status.HTTP_204_NO_CONTENT
 
     analysis_bucket_result_files = core_client.find_analysis_bucket_files(
-        filter={"analysis_id": analysis_id, "type": "RESULT"}, sort={"by": "created_at", "order": "descending"}
+        filter={"analysis_id": analysis_id, "type": AnalysisBucketType.RESULT},
+        sort={"by": "created_at", "order": "descending"},
     )
 
     assert len(analysis_bucket_result_files) > 0, "Hub should return at least one result file"
