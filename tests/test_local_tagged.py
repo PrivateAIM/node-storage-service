@@ -275,7 +275,7 @@ def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
     bucket_files = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id})
 
     assert len(bucket_files) == 1
-    assert bucket_files[0].name == filename
+    assert bucket_files[0].path == filename
 
     r = test_client.get(
         model.url.path,

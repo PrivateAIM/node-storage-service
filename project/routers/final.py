@@ -63,7 +63,7 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
     analysis_bucket = analysis_bucket_lst.pop()
 
     bucket_file_lst = storage_client.upload_to_bucket(
-        analysis_bucket.external_id,
+        analysis_bucket.bucket_id,
         {
             "file_name": file.filename,
             "content": noisy_file_content.decode("utf-8"),
@@ -81,7 +81,12 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
     bucket_file = bucket_file_lst.pop()
 
     # link file to analysis
-    core_client.create_analysis_bucket_file(bucket_file.name, bucket_file.id, analysis_bucket.id)
+    core_client.create_analysis_bucket_file(
+        path=bucket_file.name,
+        bucket_file_id=bucket_file.id,
+        analysis_bucket_id=analysis_bucket.id,
+        bucket_id=analysis_bucket.bucket_id,
+    )
 
 
 @router.put(
@@ -111,7 +116,7 @@ async def submit_final_result_to_hub(
 
     # upload to remote
     bucket_file_lst = storage_client.upload_to_bucket(
-        analysis_bucket.external_id,
+        analysis_bucket.bucket_id,
         {
             "file_name": file.filename,
             "content": file.file,
@@ -129,4 +134,9 @@ async def submit_final_result_to_hub(
     bucket_file = bucket_file_lst.pop()
 
     # link file to analysis
-    core_client.create_analysis_bucket_file(bucket_file.name, bucket_file, analysis_bucket)
+    core_client.create_analysis_bucket_file(
+        path=bucket_file.name,
+        bucket_file_id=bucket_file.id,
+        analysis_bucket_id=analysis_bucket.id,
+        bucket_id=analysis_bucket.bucket_id,
+    )
