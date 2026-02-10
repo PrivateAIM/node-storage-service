@@ -170,8 +170,8 @@ def get_flame_hub_auth_flow(
             client=httpx.Client(base_url=str(settings.hub.auth_base_url), verify=ssl_context, mounts=proxy_mounts),
         )
 
-    if settings.hub.auth.flow == AuthFlow.robot:
-        return flame_hub.auth.RobotAuth(
+    if settings.hub.auth.flow == AuthFlow.client:
+        return flame_hub.auth.ClientAuth(
             settings.hub.auth.id,
             settings.hub.auth.secret,
             client=httpx.Client(base_url=str(settings.hub.auth_base_url), verify=ssl_context, mounts=proxy_mounts),
@@ -183,7 +183,7 @@ def get_flame_hub_auth_flow(
 def get_core_client(
     settings: Annotated[Settings, Depends(get_settings)],
     auth_flow: Annotated[
-        flame_hub.auth.RobotAuth | flame_hub.auth.PasswordAuth,
+        flame_hub.auth.ClientAuth | flame_hub.auth.PasswordAuth,
         Depends(get_flame_hub_auth_flow),
     ],
     ssl_context: Annotated[ssl.SSLContext, Depends(get_ssl_context)],
@@ -199,7 +199,7 @@ def get_core_client(
 def get_storage_client(
     settings: Annotated[Settings, Depends(get_settings)],
     auth_flow: Annotated[
-        flame_hub.auth.RobotAuth | flame_hub.auth.PasswordAuth,
+        flame_hub.auth.ClientAuth | flame_hub.auth.PasswordAuth,
         Depends(get_flame_hub_auth_flow),
     ],
     ssl_context: Annotated[ssl.SSLContext, Depends(get_ssl_context)],

@@ -6,7 +6,7 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-import flame_hub.auth
+import flame_hub
 import httpx
 import peewee as pw
 import pytest
@@ -189,10 +189,10 @@ def password_auth_client(ssl_context):
 
 
 @pytest.fixture(scope="package")
-def robot_auth_client(ssl_context):
-    return flame_hub.auth.RobotAuth(
-        env.hub_robot_auth_id(),
-        env.hub_robot_auth_secret(),
+def client_auth_client(ssl_context):
+    return flame_hub.auth.ClientAuth(
+        env.hub_client_auth_id(),
+        env.hub_client_auth_secret(),
         client=httpx.Client(base_url=env.hub_auth_base_url(), verify=ssl_context),
     )
 
@@ -275,8 +275,8 @@ def project_id(project_id_factory):
 
 
 @pytest.fixture
-def analysis_id_factory(core_client, project_id):
-    analysis_ids = []
+def analysis_id_factory(core_client, storage_client, project_id):
+    analysis_ids, bucket_ids, analysis_bucket_ids = [], [], []
 
     def _factory(_project_id=project_id):
         analysis_name = next_prefixed_name()
@@ -291,8 +291,27 @@ def analysis_id_factory(core_client, project_id):
         assert analysis.name == analysis_name
         assert analysis.project_id == _project_id
 
-        # Check that analysis appears in list.
-        assert len(core_client.find_analyses(filter={"id": analysis.id})) == 1
+        # Check if analysis exists.
+        assert core_client.get_analysis(analysis.id) is not None
+
+        for bucket_type in flame_hub.types.AnalysisBucketType:
+            bucket_name = next_prefixed_name()
+            bucket = storage_client.create_bucket(name=bucket_name)
+
+            # Check if bucket exists.
+            assert storage_client.get_bucket(bucket.id) is not None
+
+            analysis_bucket = core_client.create_analysis_bucket(
+                bucket_type=bucket_type,
+                bucket_id=bucket.id,
+                analysis_id=analysis.id,
+            )
+
+            # Check if analysis bucket exists.
+            assert core_client.get_analysis_bucket(analysis_bucket.id) is not None
+
+            bucket_ids.append(bucket.id)
+            analysis_bucket_ids.append(analysis_bucket.id)
 
         analysis_ids.append(analysis.id)
 
@@ -300,25 +319,25 @@ def analysis_id_factory(core_client, project_id):
 
     yield _factory
 
+    for analysis_bucket_id in analysis_bucket_ids:
+        core_client.delete_analysis_bucket(analysis_bucket_id)
+        assert core_client.get_analysis_bucket(analysis_bucket_id) is None
+
     for analysis_id in analysis_ids:
         core_client.delete_analysis(analysis_id)
-
-        # Check that analysis is no longer found.
         assert core_client.get_analysis(analysis_id) is None
+
+    for bucket_id in bucket_ids:
+        # Delete all bucket files before deleting the bucket itself.
+        for bucket_file in storage_client.find_bucket_files(filter={"bucket_id": bucket_id}):
+            storage_client.delete_bucket_file(bucket_file.id)
+        storage_client.delete_bucket(bucket_id)
+        assert storage_client.get_bucket(bucket_id) is None
 
 
 @pytest.fixture
 def analysis_id(analysis_id_factory):
     return analysis_id_factory()
-
-
-@pytest.fixture()
-def check_buckets_exist(analysis_id, core_client):
-    def _check_buckets_exist():
-        # TODO: do not hard code amount of buckets per analysis
-        return len(core_client.find_analysis_buckets(filter={"analysis_id": analysis_id})) == 3
-
-    assert eventually(_check_buckets_exist)
 
 
 @pytest.fixture

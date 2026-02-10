@@ -50,7 +50,7 @@ def remote_node_and_private_key(core_client, realm_id):
     core_client.delete_node(node.id)
 
 
-def test_200_submit_receive_intermediate(test_client, rng, analysis_id, check_buckets_exist, core_client):
+def test_200_submit_receive_intermediate(test_client, rng, analysis_id, core_client):
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/intermediate",
@@ -74,7 +74,7 @@ def test_200_submit_receive_intermediate(test_client, rng, analysis_id, check_bu
 
 
 def test_200_submit_receive_intermediate_encrypted(
-    test_client, core_client, rng, analysis_id, check_buckets_exist, remote_node_and_private_key
+    test_client, core_client, rng, analysis_id, remote_node_and_private_key
 ):
     remote_node, remote_private_key = remote_node_and_private_key
     blob = next_random_bytes(rng)
@@ -101,9 +101,7 @@ def test_200_submit_receive_intermediate_encrypted(
     assert blob == decrypt_default(load_ecdh_private_key(remote_private_key), public_key, r.read())
 
 
-def test_400_submit_encrypted_no_remote_public_key(
-    test_client, rng, analysis_id, check_buckets_exist, node, core_client
-):
+def test_400_submit_encrypted_no_remote_public_key(test_client, rng, analysis_id, node, core_client):
     r = test_client.put(
         "/intermediate",
         auth=BearerAuth(issue_client_access_token(analysis_id)),
@@ -128,7 +126,7 @@ def test_404_invalid_id(test_client):
     assert detail_of(r) == f"Object with ID {rand_uuid} does not exist"
 
 
-def test_404_no_remote_node(test_client, analysis_id, check_buckets_exist, core_client, rng):
+def test_404_no_remote_node(test_client, analysis_id, core_client, rng):
     rand_uuid = str(uuid.uuid4())
     r = test_client.put(
         "/intermediate",
@@ -160,7 +158,6 @@ def test_400_decrypt_intermediate(
     test_client,
     core_client,
     analysis_id,
-    check_buckets_exist,
     this_node,
     remote_node_and_private_key,
     node,
