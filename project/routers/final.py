@@ -90,7 +90,7 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
 
 
 @router.put(
-    "/",
+    "",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Upload file as final result to Hub",
     operation_id="putFinalResult",

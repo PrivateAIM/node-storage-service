@@ -129,7 +129,7 @@ def _get_object_from_s3(
 
 
 @router.put(
-    "/",
+    "",
     response_model=LocalUploadResponse,
     summary="Upload file as intermediate result to local storage",
     operation_id="putLocalResult",
@@ -180,7 +180,7 @@ async def submit_intermediate_result_to_local(
 
 
 @router.delete(
-    "/",
+    "",
     summary="Delete all local results and database entries related to the specified project.",
     operation_id="deleteLocalResults",
 )
