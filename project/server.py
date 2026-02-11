@@ -103,7 +103,7 @@ def get_server_instance():
         """Check whether the service is ready to process requests. Responds with a 200 on success."""
         return {"status": "ok"}
 
-    # re-raise as a http exception
+    # re-raise as an http exception
     @_app.exception_handler(flame_hub.HubAPIError)
     async def handle_hub_api_error(_: Request, exc: flame_hub.HubAPIError):
         logger.exception("unexpected response from remote", exc_info=exc)
