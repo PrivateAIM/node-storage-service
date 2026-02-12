@@ -20,7 +20,7 @@ jobs:
         run: poetry install
       - name: Create schema file
         run: poetry run openapi-spec
-      - uses: stoplightio/spectral-action@v0.8.13
-        with:
-          file_glob: "openapi.json"
-          fail_severity: warn
+      - name: Install Spectral
+        run: npm install -g @stoplight/spectral-cli
+      - name: Lint schema file
+        run: spectral lint openapi.json --fail-severity=warn
