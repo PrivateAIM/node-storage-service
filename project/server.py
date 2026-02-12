@@ -13,9 +13,16 @@ from opendp.mod import enable_features
 _app: FastAPI | None = None
 
 
+class Author(BaseModel):
+    name: str
+    email: str
+
+
 class Project(BaseModel):
     version: str
     description: str
+    authors: list[Author]
+    license: str
 
 
 class PyProject(BaseModel):
@@ -78,10 +85,16 @@ def get_server_instance():
         lifespan=lifespan,
         description=project_readme,
         license_info={
-            "name": "Apache 2.0",
-            "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
-            "identifier": "Apache-2.0",
+            "name": project_data.project.license,
+            "identifier": project_data.project.license,
         },
+        contact={
+            "name": ", ".join([author.name for author in project_data.project.authors]),
+            "url": "https://docs.privateaim.net/about/team.html",
+        },
+        servers=[
+            {"url": "http://localhost:8000", "description": "Local"},
+        ],
         openapi_tags=[
             {
                 "name": "final",
@@ -95,10 +108,14 @@ def get_server_instance():
                 "name": "local",
                 "description": "Upload intermediate results to local storage",
             },
+            {
+                "name": "healthz",
+                "description": "Check whether the service is ready to process requests",
+            },
         ],
     )
 
-    @_app.get("/healthz", summary="Check service readiness", operation_id="getHealth")
+    @_app.get("/healthz", summary="Check service readiness", operation_id="getHealth", tags=["healthz"])
     async def do_healthcheck():
         """Check whether the service is ready to process requests. Responds with a 200 on success."""
         return {"status": "ok"}
