@@ -271,3 +271,6 @@ cython_debug/
 
 # Default log directory
 logs/
+
+# Used as input for Spectral to lint the current OpenAPI specification of this service.
+spectral/openapi.json

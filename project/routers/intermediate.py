@@ -51,7 +51,7 @@ def get_remote_node_public_key(core_client: flame_hub.CoreClient, remote_node_id
 
 
 @router.put(
-    "/",
+    "",
     response_model=IntermediateUploadResponse,
     summary="Upload file as intermediate result to Hub",
     operation_id="putIntermediateResult",

@@ -26,6 +26,7 @@ license = "Apache-2.0"
 
 [project.scripts]
 flame-storage = "project.main:run_server"
+openapi-spec = "project.main:openapi_spec"
 
 [tool.poetry]
 packages = [{ include = "project" }]
