@@ -31,3 +31,5 @@ repos:
         entry: spectral/spectral.sh
         language: unsupported_script
         args: [ --fail-severity=warn ]
+        pass_filenames: false
+        always_run: true
