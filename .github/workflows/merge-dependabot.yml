@@ -1,0 +1,21 @@
+name: Merge Dependabot PRs automatically
+
+on:
+  workflow_run:
+    workflows:
+      - "Integration test"
+      - "Lint OpenAPI schema file with Spectral"
+    types:
+      - completed
+    conclusion: success
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.user.login == "dependabot[bot]"
+    steps:
+      - name: Auto-merge Dependabot's PRs
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
