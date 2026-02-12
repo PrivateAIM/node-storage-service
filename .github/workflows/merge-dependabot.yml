@@ -7,15 +7,19 @@ on:
       - "Lint OpenAPI schema file with Spectral"
     types:
       - completed
-    conclusion: success
+    branches:
+      - main
 
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.user.login == "dependabot[bot]"
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]' &&
+      ${{ length(github.event.workflow_run.pull_requests) > 0}}
     steps:
       - name: Auto-merge Dependabot's PRs
         run: gh pr merge --auto --merge "$PR_URL"
         env:
-          PR_URL: ${{github.event.pull_request.html_url}}
+          PR_URL: ${{github.event.workflow_run.pull_requests[0].html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
