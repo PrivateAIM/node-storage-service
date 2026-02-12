@@ -1,0 +1,26 @@
+name: Lint OpenAPI schema file with Spectral
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Run Spectral
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Poetry
+        uses: ./.github/actions/setup-poetry
+      - name: Install dependencies
+        run: poetry install
+      - name: Create schema file
+        run: poetry run openapi-spec
+      - uses: stoplight/spectral-action@v0.8.13
+        with:
+          file_glob: "openapi.json"
+          fail_severity: warn
