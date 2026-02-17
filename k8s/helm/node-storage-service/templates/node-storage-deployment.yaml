@@ -18,7 +18,7 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
-              name: http-storage-srv
+              name: http-storage
           env:
             - name: MINIO__ENDPOINT
               value: "{{ .Release.Name }}-local-minio-service"
@@ -43,12 +43,12 @@ spec:
           startupProbe:
             httpGet:
               path: /healthz
-              port: http-storage-srv
+              port: http-storage
             failureThreshold: 5
             periodSeconds: 5
           livenessProbe:
             httpGet:
               path: /healthz
-              port: http-storage-srv
+              port: http-storage
             failureThreshold: 3
             periodSeconds: 10

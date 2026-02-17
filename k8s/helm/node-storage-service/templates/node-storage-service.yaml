@@ -9,4 +9,4 @@ spec:
   ports:
     - protocol: TCP
       port: 8080  # port of this service
-      targetPort: http-storage-srv  # port on the pod
+      targetPort: http-storage  # port on the pod
