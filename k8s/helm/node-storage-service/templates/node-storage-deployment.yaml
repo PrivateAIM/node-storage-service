@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: "{{ .Release.Name }}-node-storage-service"
-          image: ghcr.io/privateaim/node-storage-service:sha-f0d2d9c
+          image: ghcr.io/privateaim/node-storage-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
