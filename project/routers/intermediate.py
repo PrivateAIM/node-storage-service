@@ -80,7 +80,7 @@ async def submit_intermediate_result_to_hub(
     analysis_bucket = analysis_bucket_lst.pop()
 
     # TODO this should be chunked for large files, will be addressed in a later version
-    result_file = await file.read()
+    result_file = file.file.read()
 
     # encryption requested
     if remote_node_id is not None:
