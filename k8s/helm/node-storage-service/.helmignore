@@ -19,12 +19,10 @@ Chart.lock
 *.swp
 
 # Ignore editor-specific files
-*.DS_Store
-*.idea/
-*.vscode/
-*.project
-*.classpath
-*.settings/
+.DS_Store
+.idea/
+.vscode/
+.settings/
 *.tmp
 
 # Ignore temporary or cache files
