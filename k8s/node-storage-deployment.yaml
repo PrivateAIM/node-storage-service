@@ -15,7 +15,7 @@ spec:
       containers:
         - name: node-storage-service
           image: ghcr.io/privateaim/node-storage-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
               name: http-storage
