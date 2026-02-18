@@ -13,7 +13,13 @@ from project.routers.local import (
     LocalTaggedResultListResponse,
 )
 from tests.common.auth import BearerAuth, issue_client_access_token
-from tests.common.helpers import next_random_bytes, eventually, next_prefixed_name, next_random_string
+from tests.common.helpers import (
+    next_random_bytes,
+    eventually,
+    next_prefixed_name,
+    next_random_string,
+    wait_for_analysis_bucket_file,
+)
 from tests.common.rest import wrap_bytes_for_request, detail_of
 from tests.common.env import hub_adapter_client_id
 
@@ -271,11 +277,11 @@ def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
     )
 
     assert r.status_code == status.HTTP_200_OK
+    assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
 
-    bucket_files = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id})
+    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id}).pop()
 
-    assert len(bucket_files) == 1
-    assert bucket_files[0].path == filename
+    assert analysis_bucket_file.path == filename
 
     r = test_client.get(
         model.url.path,

@@ -6,6 +6,7 @@ from typing import Callable
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+import httpx
 
 from tests.common import env
 
@@ -81,3 +82,15 @@ def next_random_string(charset=string.ascii_letters, length: int = 20):
     assert len(charset) > 0
 
     return "".join([random.choice(charset) for _ in range(length)])
+
+
+def wait_for_analysis_bucket_file(core_client: httpx.Client, analysis_id: str | uuid.UUID):
+    """After a file is uploaded, it takes some time until the Hub creates the corresponding analysis bucket file. This
+    function tries multiple times to retrieve the resource and returns True or False depending on if the resource is
+    available on the Hub."""
+
+    def wrapper():
+        analysis_bucket_files = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id})
+        return len(analysis_bucket_files) == 1
+
+    return eventually(wrapper)

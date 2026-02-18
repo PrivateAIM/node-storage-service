@@ -77,17 +77,6 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
             detail=f"Expected single uploaded file to be returned by storage service, got {len(bucket_file_lst)}",
         )
 
-    # fetch file s.t. it can be linked to result bucket
-    bucket_file = bucket_file_lst.pop()
-
-    # link file to analysis
-    core_client.create_analysis_bucket_file(
-        path=bucket_file.name,
-        bucket_file_id=bucket_file.id,
-        analysis_bucket_id=analysis_bucket.id,
-        bucket_id=analysis_bucket.bucket_id,
-    )
-
 
 @router.put(
     "",
@@ -129,14 +118,3 @@ async def submit_final_result_to_hub(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Expected single uploaded file to be returned by storage service, got {len(bucket_file_lst)}",
         )
-
-    # fetch file s.t. it can be linked to result bucket
-    bucket_file = bucket_file_lst.pop()
-
-    # link file to analysis
-    core_client.create_analysis_bucket_file(
-        path=bucket_file.name,
-        bucket_file_id=bucket_file.id,
-        analysis_bucket_id=analysis_bucket.id,
-        bucket_id=analysis_bucket.bucket_id,
-    )

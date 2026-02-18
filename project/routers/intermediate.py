@@ -107,14 +107,6 @@ async def submit_intermediate_result_to_hub(
     # retrieve uploaded bucket file
     bucket_file = bucket_file_lst.pop()
 
-    # link bucket file to analysis
-    core_client.create_analysis_bucket_file(
-        path=bucket_file.name,
-        bucket_file_id=bucket_file.id,
-        analysis_bucket_id=analysis_bucket.id,
-        bucket_id=analysis_bucket.bucket_id,
-    )
-
     return IntermediateUploadResponse(
         object_id=bucket_file.id,
         url=str(
