@@ -49,7 +49,7 @@ def postgres(use_testcontainers):
             driver=None,
         ) as postgres:
             pg_url = urllib.parse.urlparse(postgres.get_connection_url())
-            return pw.PostgresqlDatabase(
+            postgres = pw.PostgresqlDatabase(
                 pg_url.path.lstrip("/"),  # trim leading slash
                 user=pg_url.username,
                 password=pg_url.password,
@@ -59,7 +59,11 @@ def postgres(use_testcontainers):
     else:
         host = os.environ.get("POSTGRES__HOST")
         port = os.environ.get("POSTGRES__PORT", 5432)
-        return pw.PostgresqlDatabase(dbname, user=user, password=password, host=host, port=port)
+        postgres = pw.PostgresqlDatabase(dbname, user=user, password=password, host=host, port=port)
+
+    yield postgres
+
+    postgres.close()
 
 
 @pytest.fixture(scope="package")
