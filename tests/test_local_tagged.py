@@ -65,7 +65,7 @@ def test_200_create_tagged_upload(test_client, rng, analysis_id, project_id, cor
 
     bucket = os.environ.get("MINIO__BUCKET")
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
-    with crud.bind_to(postgres):
+    with postgres.atomic():
         n_results = len(crud.Result.select())
         n_tags = len(crud.Tag.select())
         n_tagged_results = len(crud.TaggedResult.select())
@@ -85,7 +85,7 @@ def test_200_create_tagged_upload(test_client, rng, analysis_id, project_id, cor
     # Check that there is exactly one new object inside the MinIO bucket and one new entry in each of the database
     # tables.
     assert len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects + 1
-    with crud.bind_to(postgres):
+    with postgres.atomic():
         assert len(crud.Result.select()) == n_results + 1
         assert len(crud.Tag.select()) == n_tags + 1
         assert len(crud.TaggedResult.select()) == n_tagged_results + 1
@@ -195,7 +195,7 @@ def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgre
     bucket = os.environ.get("MINIO__BUCKET")
     assert len(list(minio.list_objects(bucket, prefix=f"local/{project.id}/"))) == 0
 
-    with crud.bind_to(postgres):
+    with postgres.atomic():
         assert len(crud.Result.select().where(crud.Result.client_id == analysis.id)) == 0
         assert len(crud.Tag.select().where(crud.Tag.project_id == project.id)) == 0
 
@@ -212,7 +212,7 @@ def test_tag_existing_object(test_client, minio_object, project_id, analysis_id,
     )
 
     assert r.status_code == status.HTTP_200_OK
-    with crud.bind_to(postgres):
+    with postgres.atomic():
         results = crud.Result.select().where(
             (crud.Result.object_id == object_id) & (crud.Result.client_id == analysis_id)
         )
@@ -234,7 +234,7 @@ def test_tag_existing_object(test_client, minio_object, project_id, analysis_id,
     )
 
     assert r.status_code == status.HTTP_200_OK
-    with crud.bind_to(postgres):
+    with postgres.atomic():
         assert n_results == crud.Result.select().count()
         assert n_tags == crud.Tag.select().count()
         assert n_tagged_results == crud.TaggedResult.select().count()
