@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 from starlette import status
 
+from project.crud import postgres
 from project.routers import final, intermediate, local
 from opendp.mod import enable_features
 
@@ -64,7 +65,13 @@ async def lifespan(_: FastAPI):
     # Enable features in OpenDP
     enable_features("contrib")
 
+    # Set up Postgres database to store results.
+    postgres.setup()
+
     yield
+
+    # Close all connections to the database. Note that it is not necessary to call event_logger.teardown.
+    postgres.teardown()
 
 
 def get_server_instance():
