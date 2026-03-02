@@ -27,8 +27,9 @@ from project.dependencies import (
     get_ecdh_private_key,
 )
 from project.routers.intermediate import IntermediateUploadResponse, submit_intermediate_result_to_hub
+from project.event_logging import EventLoggingRoute
 
-router = APIRouter()
+router = APIRouter(route_class=EventLoggingRoute)
 logger = logging.getLogger(__name__)
 
 _TAG_PATTERN = re.compile(r"[a-z0-9]{1,2}|[a-z0-9][a-z0-9-]{,30}[a-z0-9]")
@@ -49,7 +50,7 @@ def tag_object(
     if not is_valid_tag(tag):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid tag `{tag}`")
 
-    with crud.bind_to(db):
+    with db.atomic():
         # TODO more elegant solution for filename being None?
         try:
             result, _ = crud.Result.get_or_create(
@@ -133,6 +134,7 @@ def _get_object_from_s3(
     response_model=LocalUploadResponse,
     summary="Upload file as intermediate result to local storage",
     operation_id="putLocalResult",
+    name="local.put",
 )
 async def submit_intermediate_result_to_local(
     client_id: Annotated[str, Depends(get_client_id)],
@@ -172,7 +174,7 @@ async def submit_intermediate_result_to_local(
         object_id=object_id,
         url=str(
             request.url_for(
-                "retrieve_intermediate_result_from_local",
+                "local.object.get",
                 object_id=object_id,
             )
         ),
@@ -183,6 +185,7 @@ async def submit_intermediate_result_to_local(
     "",
     summary="Delete all local results and database entries related to the specified project.",
     operation_id="deleteLocalResults",
+    name="local.delete",
 )
 async def delete_local_results(
     project_id: str,
@@ -192,9 +195,9 @@ async def delete_local_results(
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     settings: Annotated[Settings, Depends(get_settings)],
 ):
-    """Delete all objects in MinIO and all Postgres database entries related to the specified project. Returns a 200 on
-    success, a 400 if the project is still available on the Hub and a 403 if it is not the Hub Adapter client that sends
-    the request. In both error cases nothing is deleted at all."""
+    """Delete all objects in MinIO and all Postgres result database entries related to the specified project. Returns a
+    200 on success, a 400 if the project is still available on the Hub and a 403 if it is not the Hub Adapter client
+    that sends the request. In both error cases nothing is deleted at all."""
     if client_id != settings.hub_adapter_client_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -212,7 +215,7 @@ async def delete_local_results(
         minio.remove_object(settings.minio.bucket, object_.object_name)
         object_ids.append(object_.object_name.split("/")[-1])
 
-    with crud.bind_to(db):
+    with db.atomic():
         crud.Result.delete().where(crud.Result.object_id.in_(object_ids)).execute()
         crud.Tag.delete().where(crud.Tag.project_id == project_id).execute()
 
@@ -222,6 +225,7 @@ async def delete_local_results(
     summary="Get tags for a specific project",
     operation_id="getProjectTags",
     response_model=LocalTagListResponse,
+    name="local.tags.get",
 )
 async def get_project_tags(
     client_id: Annotated[str, Depends(get_client_id)],
@@ -233,7 +237,7 @@ async def get_project_tags(
     Returns a 200 on success."""
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
-    with crud.bind_to(db):
+    with db.atomic():
         db_tags = crud.Tag.select().where(crud.Tag.project_id == project_id)
 
     return LocalTagListResponse(
@@ -242,7 +246,7 @@ async def get_project_tags(
                 name=tag.tag_name,
                 url=str(
                     request.url_for(
-                        "get_results_by_project_tag",
+                        "local.tags.name.get",
                         tag_name=tag.tag_name,
                     )
                 ),
@@ -257,6 +261,7 @@ async def get_project_tags(
     summary="Tag an existing object",
     operation_id="tagObject",
     response_model=LocalTaggedResult,
+    name="local.tags.post",
 )
 async def create_object_tag(
     tag_name: str,
@@ -278,7 +283,7 @@ async def create_object_tag(
 
     tag_object(tag_name, db, project_id, client_id, object_id, filename)
 
-    with crud.bind_to(db):
+    with db.atomic():
         result = (
             crud.Result.select()
             .where((crud.Result.object_id == object_id) & (crud.Result.client_id == client_id))
@@ -287,7 +292,7 @@ async def create_object_tag(
 
     return LocalTaggedResult(
         filename=result.filename,
-        url=str(request.url_for("retrieve_intermediate_result_from_local", object_id=object_id)),
+        url=str(request.url_for("local.object.get", object_id=object_id)),
     )
 
 
@@ -296,6 +301,7 @@ async def create_object_tag(
     summary="Get results linked to a specific tag",
     operation_id="getTaggedResults",
     response_model=LocalTaggedResultListResponse,
+    name="local.tags.name.get",
 )
 async def get_results_by_project_tag(
     tag_name: str,
@@ -308,7 +314,7 @@ async def get_results_by_project_tag(
     Returns a 200 on success."""
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
-    with crud.bind_to(db):
+    with db.atomic():
         db_tagged_results = (
             crud.Result.select()
             .join(crud.TaggedResult)
@@ -322,7 +328,7 @@ async def get_results_by_project_tag(
                 filename=result.filename,
                 url=str(
                     request.url_for(
-                        "retrieve_intermediate_result_from_local",
+                        "local.object.get",
                         object_id=result.object_id,
                     )
                 ),
@@ -336,6 +342,7 @@ async def get_results_by_project_tag(
     "/{object_id}",
     summary="Get intermediate result as file from local storage",
     operation_id="getLocalResult",
+    name="local.object.get",
 )
 async def retrieve_intermediate_result_from_local(
     client_id: Annotated[str, Depends(get_client_id)],
@@ -362,6 +369,7 @@ async def retrieve_intermediate_result_from_local(
     summary="Upload a local file directly to the Hub",
     operation_id="uploadLocalFile",
     response_model=IntermediateUploadResponse,
+    name="local.upload.put",
 )
 async def upload_local_file(
     object_id: uuid.UUID,
@@ -386,7 +394,7 @@ async def upload_local_file(
 
     # Check for filename in database. If there is no filename, use object_id per default.
     filename = str(object_id)
-    with crud.bind_to(db):
+    with db.atomic():
         result = crud.Result.select().where((crud.Result.object_id == object_id) & (crud.Result.client_id == client_id))
         if result.count() == 1:
             filename = result.get().filename

@@ -18,8 +18,9 @@ from project.dependencies import (
     get_storage_client,
     get_ecdh_private_key,
 )
+from project.event_logging import EventLoggingRoute
 
-router = APIRouter()
+router = APIRouter(route_class=EventLoggingRoute)
 logger = logging.getLogger(__name__)
 
 
@@ -55,6 +56,7 @@ def get_remote_node_public_key(core_client: flame_hub.CoreClient, remote_node_id
     response_model=IntermediateUploadResponse,
     summary="Upload file as intermediate result to Hub",
     operation_id="putIntermediateResult",
+    name="intermediate.put",
 )
 async def submit_intermediate_result_to_hub(
     client_id: Annotated[str, Depends(get_client_id)],
@@ -111,7 +113,7 @@ async def submit_intermediate_result_to_hub(
         object_id=bucket_file.id,
         url=str(
             request.url_for(
-                "retrieve_intermediate_result_from_hub",
+                "intermediate.object.get",
                 object_id=bucket_file.id,
             )
         ),
@@ -125,6 +127,7 @@ async def submit_intermediate_result_to_hub(
     # client id is not actually used here but required for auth. having this
     # as a path dependency makes pycharm stop complaining about unused params.
     dependencies=[Depends(get_client_id)],
+    name="intermediate.object.get",
 )
 async def retrieve_intermediate_result_from_hub(
     object_id: uuid.UUID,

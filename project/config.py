@@ -64,6 +64,7 @@ class PostgresConfig(FrozenBaseModel):
     keepalives_idle: int = 60
     keepalives_interval: int = 30
     keepalives_count: int = 3
+    event_logging: bool = True
 
 
 class CryptoProvider(str, Enum):

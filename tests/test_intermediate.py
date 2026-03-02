@@ -66,7 +66,7 @@ def test_200_submit_receive_intermediate(test_client, rng, analysis_id, core_cli
 
     r = test_client.get(
         model.url.path,
-        auth=BearerAuth(issue_client_access_token()),
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
     )
 
     assert r.status_code == status.HTTP_200_OK
@@ -93,7 +93,7 @@ def test_200_submit_receive_intermediate_encrypted(
 
     r = test_client.get(
         model.url.path,
-        auth=BearerAuth(issue_client_access_token()),
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
     )
 
     _, public_key = get_test_ecdh_keypair()

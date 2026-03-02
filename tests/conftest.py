@@ -17,6 +17,9 @@ from testcontainers.minio import MinioContainer
 from testcontainers.postgres import PostgresContainer
 from minio import Minio
 
+# Needs to be done here since the event logger is instantiated on import.
+os.environ["POSTGRES__EVENT_LOGGING"] = "1"
+
 from project.dependencies import get_postgres_db, get_local_minio, get_ecdh_private_key
 from project.server import get_server_instance
 from tests.common import env
