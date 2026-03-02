@@ -1176,6 +1176,27 @@ typing-extensions = "*"
 urllib3 = "*"
 
 [[package]]
+name = "node-event-logging-database"
+version = "0.2.0"
+description = "Database schema to store events node-sided."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = []
+develop = false
+
+[package.dependencies]
+peewee = ">=3.18.3,<4.0.0"
+psycopg2-binary = ">=2.9.11,<3.0.0"
+pydantic = ">=2.12.5,<3.0.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/PrivateAIM/node-event-logging-database.git"
+reference = "v0.2.0"
+resolved_reference = "9b052e2f2c3d02325da91c7f13f5430c0f20fba3"
+
+[[package]]
 name = "nodeenv"
 version = "1.10.0"
 description = "Node.js virtual environment builder"
@@ -2760,4 +2781,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "1699f92f59a3f4446da235d6140d1e3e87b955afe7ab2a6179ef08214f4ad266"
+content-hash = "5264bbbb9553353f12c534f0c74e3121017f434c5c84708c29c281a420e41144"
