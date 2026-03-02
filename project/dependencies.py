@@ -6,7 +6,7 @@ from typing import Annotated
 
 import flame_hub.auth
 import httpx
-import peewee as pw
+from playhouse.pool import PooledPostgresqlDatabase
 import truststore
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -212,17 +212,24 @@ def get_storage_client(
     )
 
 
+@lru_cache
 def get_postgres_db(
     settings: Annotated[Settings, Depends(get_settings)],
 ):
     pg = settings.postgres
 
-    return pw.PostgresqlDatabase(
+    return PooledPostgresqlDatabase(
         pg.db,
         user=pg.user,
         password=pg.password,
         host=pg.host,
         port=pg.port,
+        max_connections=pg.max_connections,
+        stale_timeout=pg.stale_timeout,
+        keepalives=1,
+        keepalives_idle=pg.keepalives_idle,
+        keepalives_interval=pg.keepalives_interval,
+        keepalives_count=pg.keepalives_count,
     )
 
 

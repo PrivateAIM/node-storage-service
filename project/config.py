@@ -59,6 +59,11 @@ class PostgresConfig(FrozenBaseModel):
     user: str
     db: str
     port: int = 5432
+    max_connections: int = 20
+    stale_timeout: int = 300
+    keepalives_idle: int = 60
+    keepalives_interval: int = 30
+    keepalives_count: int = 3
 
 
 class CryptoProvider(str, Enum):
