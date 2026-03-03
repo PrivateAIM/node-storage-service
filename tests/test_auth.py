@@ -15,6 +15,8 @@ endpoints = [
     ("PUT", "/final"),
     ("GET", "/local/tags"),
     ("GET", f"/local/tags/{uuid.uuid4()}"),
+    ("PUT", "/final"),
+    ("PUT", "/final/localdp"),
 ]
 
 
