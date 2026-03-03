@@ -135,16 +135,15 @@ def get_server_instance():
     # re-raise as an http exception
     @_app.exception_handler(flame_hub.HubAPIError)
     async def handle_hub_api_error(_: Request, exc: flame_hub.HubAPIError):
-        logger.exception("unexpected response from remote", exc_info=exc)
-
         remote_status_code = "unknown"
-
         if exc.error_response is not None:
             remote_status_code = exc.error_response.status_code
 
+        error_msg = f"Unexpected response from Hub (status code {remote_status_code}): '{exc}'."
+        logger.exception(error_msg)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Hub returned an unexpected response ({remote_status_code})",
+            detail=error_msg,
         )
 
     _app.include_router(
