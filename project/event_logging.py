@@ -3,10 +3,12 @@ from functools import cached_property
 import logging
 import uuid
 
-from fastapi.routing import APIRoute, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute, HTTPException, Request
 from node_event_logging import AttributesModel, EventLog, EventModelMap, init_db
 import peewee as pw
 from psycopg2 import DatabaseError
+from starlette import status
 from starlette.datastructures import Address
 
 from project.crud import Postgres
@@ -47,10 +49,11 @@ class BaseRequestAttributes(AttributesModel):
 
 
 class AuthenticatedRequestAttributes(BaseRequestAttributes):
-    """Requests for which authentication does not have failed, always have this information."""
+    """Requests for which authentication does not have failed, so client_id is always available. project_id is only
+    available if client_id is an analysis_id and the analysis is still available on the Hub."""
 
     client_id: str
-    project_id: uuid.UUID
+    project_id: uuid.UUID | None
 
 
 AGNOSTIC_EVENTS = {
@@ -218,11 +221,20 @@ class EventLogger(Postgres):
                         "project_name": analysis.project.name,
                     }
                 )
+                attributes["project_id"] = str(analysis.project_id)
+            else:
+                template_kwargs.update(
+                    {
+                        "analysis_name": client_id,
+                        "project_id": "(project not available)",
+                        "project_name": "(project not available)",
+                    }
+                )
 
             attributes.update(
                 {
                     "client_id": client_id,
-                    "project_id": template_kwargs["project_id"],
+                    "project_id": attributes.get("project_id", None),
                 }
             )
 
@@ -248,9 +260,19 @@ class EventLoggingRoute(APIRoute):
     def get_route_handler(self):
         original_handler = super().get_route_handler()
 
+        # TODO: handle exceptions for streaming responses
         async def log_event(request: Request):
-            response = await original_handler(request)
-            event_logger.log_event(request, response.status_code)
-            return response
+            try:
+                response = await original_handler(request)
+                event_logger.log_event(request, response.status_code)
+                return response
+            except HTTPException as e:
+                event_logger.log_event(request, e.status_code)
+                raise
+            except RequestValidationError:
+                event_logger.log_event(request, status.HTTP_422_UNPROCESSABLE_TYPE)
+            except Exception:
+                event_logger.log_event(request, status.HTTP_500_INTERNAL_SERVER_ERROR)
+                raise
 
         return log_event if event_logger.enabled else original_handler
