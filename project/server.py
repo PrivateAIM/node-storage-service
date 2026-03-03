@@ -4,6 +4,8 @@ from pathlib import Path
 
 import flame_hub
 from fastapi import FastAPI, Request, HTTPException
+import peewee as pw
+from psycopg2 import DatabaseError
 from pydantic import BaseModel
 from starlette import status
 
@@ -145,6 +147,17 @@ def get_server_instance():
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=error_msg,
         )
+
+    async def handle_database_error(_: Request, exc: pw.PeeweeException | DatabaseError):
+        error_msg = f"Unexpected database error: '{exc}'."
+        logger.exception(error_msg)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg,
+        )
+
+    _app.add_exception_handler(pw.PeeweeException, handle_database_error)
+    _app.add_exception_handler(DatabaseError, handle_database_error)
 
     _app.include_router(
         final.router,

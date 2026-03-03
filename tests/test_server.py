@@ -1,9 +1,10 @@
 import uuid
 
 from flame_hub import HubAPIError
+import peewee as pw
 from starlette import status
 
-from project.dependencies import get_storage_client
+from project.dependencies import get_storage_client, get_postgres_db
 from project.server import load_pyproject
 from tests.common.auth import BearerAuth, issue_client_access_token
 from tests.common.rest import detail_of
@@ -30,7 +31,30 @@ def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, ana
         auth=BearerAuth(issue_client_access_token(analysis_id)),
     )
 
-    assert r.status_code == status.HTTP_502_BAD_GATEWAY
-    assert detail_of(r) == "Unexpected response from Hub (status code unknown): 'Test Error'."
+    try:
+        assert r.status_code == status.HTTP_502_BAD_GATEWAY
+        assert detail_of(r) == "Unexpected response from Hub (status code unknown): 'Test Error'."
+    finally:
+        test_client.app.dependency_overrides.pop(get_storage_client)
 
-    test_client.app.dependency_overrides.pop(get_storage_client)
+
+def test_database_exception_handler(monkeypatch, test_client, analysis_id):
+    def override_postgres():
+        return pw.PostgresqlDatabase("test")
+
+    old_override_postgres = test_client.app.dependency_overrides.get(get_postgres_db, None)
+    test_client.app.dependency_overrides[get_postgres_db] = override_postgres
+
+    r = test_client.get(
+        "/local/tags",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+    )
+
+    try:
+        assert r.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert "Unexpected database error:" in detail_of(r)
+    finally:
+        if old_override_postgres is None:
+            test_client.app.dependency_overrides.pop(get_postgres_db)
+        else:
+            test_client.app.dependency_overrides[get_postgres_db] = old_override_postgres
