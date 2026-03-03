@@ -12,6 +12,7 @@ from project.routers.local import (
     LocalTagListResponse,
     LocalTaggedResultListResponse,
 )
+from project.routers.intermediate import IntermediateUploadResponse
 from tests.common.auth import BearerAuth, issue_client_access_token
 from tests.common.helpers import (
     next_random_bytes,
@@ -56,7 +57,14 @@ def test_is_valid_tag(pattern, expected):
     assert is_valid_tag(pattern) == expected
 
 
-def test_200_create_tagged_upload(test_client, rng, analysis_id, project_id, core_client, minio, postgres):
+@pytest.mark.parametrize(
+    "expected_events",
+    [("local.put.success", "local.tags.get.success", "local.tags.name.get.success")],
+    indirect=True,
+)
+def test_200_create_tagged_upload(
+    test_client, rng, analysis_id, project_id, core_client, minio, postgres, expected_events
+):
     # use global random here to generate different tags for each run
     tag = next_random_string(charset=string.ascii_lowercase)
     filename = str(uuid.uuid4())
@@ -123,7 +131,8 @@ def test_200_create_tagged_upload(test_client, rng, analysis_id, project_id, cor
     assert tagged_result.filename == filename
 
 
-def test_404_submit_tagged(test_client, rng):
+@pytest.mark.parametrize("expected_events", ["local.put.failure"], indirect=True)
+def test_404_submit_tagged(test_client, rng, expected_events):
     rand_uuid = str(uuid.uuid4())
     blob = next_random_bytes(rng)
 
@@ -138,7 +147,8 @@ def test_404_submit_tagged(test_client, rng):
     assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
 
 
-def test_404_get_tags(test_client):
+@pytest.mark.parametrize("expected_events", ["local.tags.get.failure"], indirect=True)
+def test_404_get_tags(test_client, expected_events):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.get(
@@ -150,7 +160,8 @@ def test_404_get_tags(test_client):
     assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
 
 
-def test_404_get_results_by_tag(test_client):
+@pytest.mark.parametrize("expected_events", ["local.tags.name.get.failure"], indirect=True)
+def test_404_get_results_by_tag(test_client, expected_events):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.get(
@@ -163,7 +174,8 @@ def test_404_get_results_by_tag(test_client):
     assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
 
 
-def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgres):
+@pytest.mark.parametrize("expected_events", [("local.put.success", "local.delete.success")], indirect=True)
+def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgres, expected_events):
     project = core_client.create_project(name=next_prefixed_name())
     analysis = core_client.create_analysis(project_id=project.id, name=next_prefixed_name())
 
@@ -200,7 +212,12 @@ def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgre
         assert len(crud.Tag.select().where(crud.Tag.project_id == project.id)) == 0
 
 
-def test_tag_existing_object(test_client, minio_object, project_id, analysis_id, postgres):
+@pytest.mark.parametrize(
+    "expected_events",
+    [("local.tags.post.success", "local.tags.post.success", "local.tags.post.failure")],
+    indirect=True,
+)
+def test_tag_existing_object(test_client, minio_object, project_id, analysis_id, postgres, expected_events):
     object_id = minio_object.object_name.split("/")[-1]
     filename = next_random_string()
     tag_name = next_random_string(charset=string.ascii_lowercase)
@@ -255,7 +272,12 @@ def test_tag_existing_object(test_client, minio_object, project_id, analysis_id,
     )
 
 
-def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
+@pytest.mark.parametrize(
+    "expected_events",
+    [("local.put.success", "local.upload.put.success", "intermediate.object.get.success")],
+    indirect=True,
+)
+def test_200_upload_local_file(test_client, core_client, rng, analysis_id, expected_events):
     blob = next_random_bytes(rng)
     tag_name = next_random_string(charset=string.ascii_lowercase)
     filename = next_random_string()
@@ -275,6 +297,8 @@ def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
         auth=BearerAuth(issue_client_access_token(analysis_id)),
         params={"object_id": model.object_id},
     )
+
+    model = IntermediateUploadResponse(**r.json())
 
     assert r.status_code == status.HTTP_200_OK
     assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."

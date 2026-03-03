@@ -10,7 +10,8 @@ from tests.common.rest import wrap_bytes_for_request, detail_of
 pytestmark = pytest.mark.live
 
 
-def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client, analysis_id):
+@pytest.mark.parametrize("expected_events", ["final.localdp.put.success"], indirect=True)
+def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client, analysis_id, expected_events):
     # Send a valid numerical file.
     raw_value = rng.random()
     blob = str(raw_value).encode("utf-8")
@@ -39,7 +40,8 @@ def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client,
     assert noisy_value != raw_value, "Noisy value should be different from raw value."
 
 
-def test_200_submit_to_upload(test_client, rng, core_client, storage_client, analysis_id):
+@pytest.mark.parametrize("expected_events", ["final.put.success"], indirect=True)
+def test_200_submit_to_upload(test_client, rng, core_client, storage_client, analysis_id, expected_events):
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/final",
@@ -59,7 +61,8 @@ def test_200_submit_to_upload(test_client, rng, core_client, storage_client, ana
     assert result_file_content == blob, "Result file has incorrect content."
 
 
-def test_404_submit_invalid_id(test_client, rng):
+@pytest.mark.parametrize("expected_events", ["final.put.failure"], indirect=True)
+def test_404_submit_invalid_id(test_client, rng, expected_events):
     rand_uuid = str(uuid.uuid4())
     blob = next_random_bytes(rng)
 

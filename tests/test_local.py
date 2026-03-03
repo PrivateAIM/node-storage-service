@@ -17,7 +17,10 @@ from tests.common.env import hub_adapter_client_id
 pytestmark = pytest.mark.live
 
 
-def test_200_submit_receive_from_local(test_client, rng, core_client, project_id, analysis_id, minio, postgres):
+@pytest.mark.parametrize("expected_events", [("local.put.success", "local.object.get.success")], indirect=True)
+def test_200_submit_receive_from_local(
+    test_client, rng, core_client, project_id, analysis_id, minio, postgres, expected_events
+):
     bucket = os.environ.get("MINIO__BUCKET")
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
     with postgres.atomic():
@@ -52,7 +55,8 @@ def test_200_submit_receive_from_local(test_client, rng, core_client, project_id
     assert r.read() == blob
 
 
-def test_404_unknown_oid(test_client, core_client, analysis_id):
+@pytest.mark.parametrize("expected_events", ["local.object.get.failure"], indirect=True)
+def test_404_unknown_oid(test_client, core_client, analysis_id, expected_events):
     oid = uuid.uuid4()
     r = test_client.get(
         f"/local/{oid}",
@@ -63,7 +67,8 @@ def test_404_unknown_oid(test_client, core_client, analysis_id):
     assert detail_of(r) == f"Object with ID {oid} does not exist"
 
 
-def test_200_result_from_another_analysis(test_client, core_client, analysis_id_factory, rng):
+@pytest.mark.parametrize("expected_events", [("local.put.success", "local.object.get.success")], indirect=True)
+def test_200_result_from_another_analysis(test_client, core_client, analysis_id_factory, rng, expected_events):
     first_analysis_id, second_analysis_id = analysis_id_factory(), analysis_id_factory()
 
     blob = next_random_bytes(rng)
@@ -79,7 +84,10 @@ def test_200_result_from_another_analysis(test_client, core_client, analysis_id_
     assert r.read() == blob
 
 
-def test_404_result_from_another_project(test_client, core_client, rng, project_id_factory, analysis_id_factory):
+@pytest.mark.parametrize("expected_events", [("local.put.success", "local.object.get.failure")], indirect=True)
+def test_404_result_from_another_project(
+    test_client, core_client, rng, project_id_factory, analysis_id_factory, expected_events
+):
     first_analysis_id = analysis_id_factory(project_id_factory())
     second_analysis_id = analysis_id_factory(project_id_factory())
 
@@ -97,7 +105,8 @@ def test_404_result_from_another_project(test_client, core_client, rng, project_
     assert detail_of(r) == f"Object with ID {object_id} does not exist"
 
 
-def test_400_delete_results(test_client, project_id, minio, postgres):
+@pytest.mark.parametrize("expected_events", ["local.delete.failure"], indirect=True)
+def test_400_delete_results(test_client, project_id, minio, postgres, expected_events):
     bucket = os.environ.get("MINIO__BUCKET")
 
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
@@ -123,7 +132,8 @@ def test_400_delete_results(test_client, project_id, minio, postgres):
         assert len(crud.TaggedResult.select()) == n_tagged_results
 
 
-def test_403_delete_results(test_client, project_id, minio, postgres):
+@pytest.mark.parametrize("expected_events", ["local.delete.failure"], indirect=True)
+def test_403_delete_results(test_client, project_id, minio, postgres, expected_events):
     bucket = os.environ.get("MINIO__BUCKET")
 
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
@@ -152,7 +162,8 @@ def test_403_delete_results(test_client, project_id, minio, postgres):
         assert len(crud.TaggedResult.select()) == n_tagged_results
 
 
-def test_200_delete_results(test_client, core_client, rng, minio, postgres):
+@pytest.mark.parametrize("expected_events", [("local.put.success", "local.delete.success")], indirect=True)
+def test_200_delete_results(test_client, core_client, rng, minio, postgres, expected_events):
     project = core_client.create_project(name=next_prefixed_name())
     analysis = core_client.create_analysis(project_id=project.id, name=next_prefixed_name())
 
@@ -194,7 +205,12 @@ def test_200_delete_results(test_client, core_client, rng, minio, postgres):
         assert len(crud.TaggedResult.select()) == n_tagged_results
 
 
-def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
+@pytest.mark.parametrize(
+    "expected_events",
+    [("local.put.success", "local.upload.put.success", "local.object.get.success")],
+    indirect=True,
+)
+def test_200_upload_local_file(test_client, core_client, rng, analysis_id, expected_events):
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/local",
