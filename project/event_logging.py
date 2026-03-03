@@ -28,10 +28,29 @@ class EventTag(str, Enum):
     HUB_ADAPTER = "Hub Adapter"
     PO = "Pod Orchestrator"
     STORAGE = "Storage"
+    AUTH = "Authentication"
 
     INFO = "Info"
     WARNING = "Warning"
     ERROR = "Error"
+
+
+class BaseRequestAttributes(AttributesModel):
+    """Definition of additional attributes that are used for validation before persisting an event log."""
+
+    method: str
+    path: str
+    url: str
+    client: Address
+    status_code: int
+    tags: list[EventTag]
+
+
+class AuthenticatedRequestAttributes(BaseRequestAttributes):
+    """Requests for which authentication does not have failed, always have this information."""
+
+    client_id: str
+    project_id: uuid.UUID
 
 
 AGNOSTIC_EVENTS = {
@@ -82,9 +101,15 @@ AGNOSTIC_EVENTS = {
         "body_template": "Analysis {analysis_name} requested to upload a final result to the Hub",
         "tags": [EventTag.STORAGE, EventTag.PO, EventTag.HUB],
     },
+    "auth": {
+        "body_template": "Authentication against endpoint {endpoint_name} failed",
+        "tags": [EventTag.STORAGE, EventTag.AUTH],
+        "model": BaseRequestAttributes,
+    },
     "unknown": {
         "body_template": "An unknown event has occurred",
         "tags": [EventTag.STORAGE],
+        "model": BaseRequestAttributes,
     },
 }
 
@@ -97,20 +122,6 @@ for name, data in AGNOSTIC_EVENTS.items():
             f"{name}.failure": data,
         }
     )
-
-
-class EventLogAttributes(AttributesModel):
-    """Definition of additional attributes that is used for validation before persisting a log."""
-
-    client_id: str
-    project_id: uuid.UUID
-
-    method: str
-    path: str
-    url: str
-    client: Address
-    status_code: int
-    tags: list[EventTag]
 
 
 def annotate_event(event_name: str, status_code: int) -> tuple[str, EventTag]:
@@ -141,7 +152,10 @@ class EventLogger(Postgres):
         super().__init__()
         logger.info(f"Event logging set to {'enabled' if self.enabled else 'disabled'}.")
         # Add the attributes model to the mapping to enable validation of attributes.
-        EventModelMap.mapping = {event_name: EventLogAttributes for event_name in ANNOTATED_EVENTS}
+        EventModelMap.mapping = {
+            event_name: event_data.get("model", AuthenticatedRequestAttributes)
+            for event_name, event_data in ANNOTATED_EVENTS.items()
+        }
 
     @cached_property
     def core_client(self):
@@ -167,46 +181,57 @@ class EventLogger(Postgres):
         else:
             event_name = route.name
 
+        template_kwargs = {"endpoint_name": event_name}
+
+        # This only happens if authentication fails.
+        try:
+            client_id = request.state.client_id
+        except AttributeError:
+            client_id, event_name = None, "auth"
+
         event_name, status_tag = annotate_event(event_name, status_code)
 
         if event_name not in ANNOTATED_EVENTS:
             logger.warning(f"Unknown event name: {event_name}")
             event_name = "unknown"
 
-        client_id = request.state.client_id
-
-        template_kwargs = dict(request.query_params) | request.path_params | {"client_id": client_id}
-
-        # If client_id is an analysis_id, retrieve more information from the Hub about the analysis and project.
-        analysis = self.core_client.get_analysis(analysis_id=client_id)
-        if analysis is not None:
-            template_kwargs.update(
-                {
-                    "analysis_name": analysis.name,
-                    "project_id": str(analysis.project_id),
-                    "project_name": analysis.project.name,
-                }
-            )
-
-        body = ANNOTATED_EVENTS[event_name]["body_template"].format(**template_kwargs)
-        tags = ANNOTATED_EVENTS[event_name]["tags"] + [status_tag]
+        body_template = ANNOTATED_EVENTS[event_name]["body_template"]
         attributes = {
-            "client_id": client_id,
-            "project_id": template_kwargs["project_id"],
             "method": request.method,
             "path": request.scope.get("path"),
             "url": str(request.url),
             "client": request.client,
             "status_code": status_code,
-            "tags": tags,
+            "tags": ANNOTATED_EVENTS[event_name]["tags"] + [status_tag],
         }
+
+        template_kwargs |= dict(request.query_params) | request.path_params | {"client_id": client_id}
+
+        if client_id is not None:
+            # If client_id is an analysis_id, retrieve more information from the Hub about the analysis and project.
+            analysis = self.core_client.get_analysis(analysis_id=client_id)
+            if analysis is not None:
+                template_kwargs.update(
+                    {
+                        "analysis_name": analysis.name,
+                        "project_id": str(analysis.project_id),
+                        "project_name": analysis.project.name,
+                    }
+                )
+
+            attributes.update(
+                {
+                    "client_id": client_id,
+                    "project_id": template_kwargs["project_id"],
+                }
+            )
 
         with self.db.atomic():
             try:
                 EventLog.create(
                     event_name=event_name,
                     service_name=SERVICE_NAME,
-                    body=body,
+                    body=body_template.format(**template_kwargs),
                     attributes=attributes,
                 )
             except (pw.PeeweeException, DatabaseError) as e:
