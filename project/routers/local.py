@@ -7,6 +7,7 @@ from typing import Annotated
 
 import flame_hub
 import peewee as pw
+from playhouse.pool import PooledPostgresqlDatabase
 from fastapi import Depends, UploadFile, APIRouter, HTTPException, File, Form
 from cryptography.hazmat.primitives.asymmetric import ec
 from minio import Minio, S3Error
@@ -141,7 +142,7 @@ async def submit_intermediate_result_to_local(
     file: Annotated[UploadFile, File()],
     settings: Annotated[Settings, Depends(get_settings)],
     minio: Annotated[Minio, Depends(get_local_minio)],
-    db: Annotated[pw.PostgresqlDatabase, Depends(get_postgres_db)],
+    db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     request: Request,
     tag: Annotated[str | None, Form()] = None,
@@ -191,7 +192,7 @@ async def delete_local_results(
     project_id: str,
     client_id: Annotated[str, Depends(get_client_id)],
     minio: Annotated[Minio, Depends(get_local_minio)],
-    db: Annotated[pw.PostgresqlDatabase, Depends(get_postgres_db)],
+    db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     settings: Annotated[Settings, Depends(get_settings)],
 ):
@@ -230,7 +231,7 @@ async def delete_local_results(
 async def get_project_tags(
     client_id: Annotated[str, Depends(get_client_id)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
-    db: Annotated[pw.PostgresqlDatabase, Depends(get_postgres_db)],
+    db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     request: Request,
 ):
     """Get a list of tags assigned to the project for an analysis.
@@ -268,7 +269,7 @@ async def create_object_tag(
     object_id: uuid.UUID,
     client_id: Annotated[str, Depends(get_client_id)],
     settings: Annotated[Settings, Depends(get_settings)],
-    db: Annotated[pw.PostgresqlDatabase, Depends(get_postgres_db)],
+    db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     minio: Annotated[Minio, Depends(get_local_minio)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     request: Request,
@@ -306,7 +307,7 @@ async def create_object_tag(
 async def get_results_by_project_tag(
     tag_name: str,
     client_id: Annotated[str, Depends(get_client_id)],
-    db: Annotated[pw.PostgresqlDatabase, Depends(get_postgres_db)],
+    db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     request: Request,
 ):
@@ -379,7 +380,7 @@ async def upload_local_file(
     settings: Annotated[Settings, Depends(get_settings)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
-    db: Annotated[pw.PostgresqlDatabase, Depends(get_postgres_db)],
+    db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     private_key: Annotated[ec.EllipticCurvePrivateKey, Depends(get_ecdh_private_key)],
     remote_node_id: Annotated[str | None, Form()] = None,
 ):
