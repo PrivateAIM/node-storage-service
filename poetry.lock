@@ -1697,20 +1697,24 @@ tomli = {version = ">=1", markers = "python_version < \"3.11\""}
 dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "requests", "setuptools", "xmlschema"]
 
 [[package]]
-name = "pytest-dotenv"
-version = "0.5.2"
-description = "A py.test plugin that parses environment files before running tests"
+name = "pytest-env"
+version = "1.5.0"
+description = "pytest plugin that allows you to add environment variables."
 optional = false
-python-versions = "*"
+python-versions = ">=3.10"
 groups = ["dev"]
 files = [
-    {file = "pytest-dotenv-0.5.2.tar.gz", hash = "sha256:2dc6c3ac6d8764c71c6d2804e902d0ff810fa19692e95fe138aefc9b1aa73732"},
-    {file = "pytest_dotenv-0.5.2-py3-none-any.whl", hash = "sha256:40a2cece120a213898afaa5407673f6bd924b1fa7eafce6bda0e8abffe2f710f"},
+    {file = "pytest_env-1.5.0-py3-none-any.whl", hash = "sha256:89a15686ac837c9cd009a8a2d52bd55865e2f23c82094247915dae4540c87161"},
+    {file = "pytest_env-1.5.0.tar.gz", hash = "sha256:db8994b9ce170f135a37acc09ac753a6fc697d15e691b576ed8d8ca261c40246"},
 ]
 
 [package.dependencies]
-pytest = ">=5.0.0"
-python-dotenv = ">=0.9.1"
+pytest = ">=9.0.2"
+python-dotenv = ">=1.2.1"
+tomli = {version = ">=2.4", markers = "python_version < \"3.11\""}
+
+[package.extras]
+testing = ["covdefaults (>=2.3)", "coverage (>=7.13.4)", "pytest-mock (>=3.15.1)"]
 
 [[package]]
 name = "python-discovery"
@@ -2798,4 +2802,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "d25ce0262b3a1800eca18246c39f79bba0cda74ed7fd7e459e7ceedce40db5c2"
+content-hash = "6f1f5012f809d93b5b729ccc7dbb94b4f36bd1cb736bcb526e092aa2cf0a1ce8"
