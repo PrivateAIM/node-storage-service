@@ -196,7 +196,7 @@ class EventLogger(Postgres):
 
         if event_name not in ANNOTATED_EVENTS:
             logger.warning(f"Unknown event name: {event_name}")
-            event_name = "unknown"
+            event_name, _ = annotate_event("unknown", status_code)
 
         body_template = ANNOTATED_EVENTS[event_name]["body_template"]
         attributes = {
