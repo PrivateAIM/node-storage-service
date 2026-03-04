@@ -26,12 +26,12 @@ def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, ana
 
     test_client.app.dependency_overrides[get_storage_client] = lambda: storage_client
 
-    r = test_client.get(
-        f"/intermediate/{uuid.uuid4()}",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
-    )
-
     try:
+        r = test_client.get(
+            f"/intermediate/{uuid.uuid4()}",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+        )
+
         assert r.status_code == status.HTTP_502_BAD_GATEWAY
         assert detail_of(r) == "Unexpected response from Hub (status code unknown): 'Test Error'."
     finally:
