@@ -52,7 +52,7 @@ def test_database_exception_handler(monkeypatch, test_client, analysis_id):
 
     try:
         assert r.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-        assert "Unexpected database error:" in detail_of(r)
+        assert "Unexpected database error." == detail_of(r)
     finally:
         if old_override_postgres is None:
             test_client.app.dependency_overrides.pop(get_postgres_db)

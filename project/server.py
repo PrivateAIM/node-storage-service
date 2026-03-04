@@ -149,11 +149,10 @@ def get_server_instance():
         )
 
     async def handle_database_error(_: Request, exc: pw.PeeweeException | DatabaseError):
-        error_msg = f"Unexpected database error: '{exc}'."
-        logger.exception(error_msg)
+        logger.exception(f"Unexpected database error: '{exc}'.")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=error_msg,
+            detail="Unexpected database error.",
         )
 
     _app.add_exception_handler(pw.PeeweeException, handle_database_error)
