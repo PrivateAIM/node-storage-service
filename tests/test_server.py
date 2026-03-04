@@ -52,12 +52,12 @@ def test_database_exception_handler(test_client, analysis_id):
     old_override_postgres = test_client.app.dependency_overrides.get(get_postgres_db, None)
     test_client.app.dependency_overrides[get_postgres_db] = override_postgres
 
-    r = test_client.get(
-        "/local/tags",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
-    )
-
     try:
+        r = test_client.get(
+            "/local/tags",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+        )
+
         assert r.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
         assert "Unexpected database error." == detail_of(r)
     finally:
