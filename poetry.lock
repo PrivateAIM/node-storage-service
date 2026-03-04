@@ -1193,7 +1193,7 @@ pydantic = ">=2.12.5,<3.0.0"
 [package.source]
 type = "git"
 url = "https://github.com/PrivateAIM/node-event-logging-database.git"
-reference = "v0.2.0"
+reference = "9b052e2f2c3d02325da91c7f13f5430c0f20fba3"
 resolved_reference = "9b052e2f2c3d02325da91c7f13f5430c0f20fba3"
 
 [[package]]
@@ -2802,4 +2802,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "6f1f5012f809d93b5b729ccc7dbb94b4f36bd1cb736bcb526e092aa2cf0a1ce8"
+content-hash = "ed6dd7ef565ceb9891ac2158a56ee39108c9cc862570f64b15f7b5f8ff680e3e"
