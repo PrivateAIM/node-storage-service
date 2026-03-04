@@ -8,13 +8,15 @@ from tests.common.auth import BearerAuth, issue_client_access_token, issue_acces
 from tests.common.rest import detail_of
 
 endpoints = [
-    ("GET", f"/intermediate/{uuid.uuid4()}", "auth.failure"),  # UUID can be arbitrary for auth checks
-    ("PUT", "/intermediate", "auth.failure"),
-    ("GET", f"/local/{uuid.uuid4()}", "auth.failure"),
     ("PUT", "/local", "auth.failure"),
-    ("PUT", "/final", "auth.failure"),
+    ("DELETE", "/local", "auth.failure"),
+    ("GET", f"/local/{uuid.uuid4()}", "auth.failure"),  # UUID can be arbitrary for auth checks.
     ("GET", "/local/tags", "auth.failure"),
+    ("POST", "/local/tags", "auth.failure"),
     ("GET", f"/local/tags/{uuid.uuid4()}", "auth.failure"),
+    ("PUT", "/local/upload", "auth.failure"),
+    ("PUT", "/intermediate", "auth.failure"),
+    ("GET", f"/intermediate/{uuid.uuid4()}", "auth.failure"),
     ("PUT", "/final", "auth.failure"),
     ("PUT", "/final/localdp", "auth.failure"),
 ]
