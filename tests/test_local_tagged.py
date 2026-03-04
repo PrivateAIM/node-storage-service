@@ -298,9 +298,10 @@ def test_200_upload_local_file(test_client, core_client, rng, analysis_id, expec
         params={"object_id": model.object_id},
     )
 
+    assert r.status_code == status.HTTP_200_OK
+
     model = IntermediateUploadResponse(**r.json())
 
-    assert r.status_code == status.HTTP_200_OK
     assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
 
     analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id}).pop()
