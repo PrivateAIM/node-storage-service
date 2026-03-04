@@ -7,7 +7,7 @@ COPY ./pyproject.toml ./poetry.lock ./
 RUN set -ex && \
         python -m pip install --disable-pip-version-check --no-cache-dir poetry==2.1.0 && \
         poetry self add poetry-plugin-export==1.9.0 && \
-        poetry export -n -f requirements.txt -o requirements.txt
+        poetry export -n -f requirements.txt -o requirements.txt --without-hashes
 
 FROM python@sha256:323a717dc4a010fee21e3f1aac738ee10bb485de4e7593ce242b36ee48d6b352
 
@@ -26,6 +26,8 @@ RUN set -ex && \
         addgroup -S nonroot && \
         adduser -S nonroot -G nonroot && \
         chown -R nonroot:nonroot /app
+
+RUN apk add --no-cache git
 
 RUN set -ex && \
       python -m pip install --disable-pip-version-check --no-cache-dir -r requirements.txt
