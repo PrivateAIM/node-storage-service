@@ -26,6 +26,7 @@ def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, ana
 
     monkeypatch.setattr(storage_client, "get_bucket_file", raise_error)
 
+    old_override_storage_client = test_client.app.dependency_overrides.get(get_storage_client, None)
     test_client.app.dependency_overrides[get_storage_client] = lambda: storage_client
 
     try:
@@ -37,7 +38,10 @@ def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, ana
         assert r.status_code == status.HTTP_502_BAD_GATEWAY
         assert detail_of(r) == "Unexpected response from Hub (status code unknown): 'Test Error'."
     finally:
-        test_client.app.dependency_overrides.pop(get_storage_client)
+        if old_override_storage_client is None:
+            test_client.app.dependency_overrides.pop(get_storage_client)
+        else:
+            test_client.app.dependency_overrides[get_storage_client] = old_override_storage_client
 
 
 @pytest.mark.live
