@@ -263,8 +263,8 @@ class EventLoggingRoute(APIRoute):
         def safe_log(request: Request, status_code: int):
             try:
                 event_logger.log_event(request, status_code)
-            except Exception as e:
-                logger.exception(f"Failed to log event: {e}")
+            except Exception:
+                logger.exception("Failed to log event.")
 
         # TODO: handle exceptions for streaming responses
         async def log_event(request: Request):
