@@ -50,7 +50,12 @@ def remote_node_and_private_key(core_client, realm_id):
     core_client.delete_node(node.id)
 
 
-def test_200_submit_receive_intermediate(test_client, rng, analysis_id, core_client):
+@pytest.mark.parametrize(
+    "expected_events",
+    [("intermediate.put.success", "intermediate.object.get.success")],
+    indirect=True,
+)
+def test_200_submit_receive_intermediate(test_client, rng, analysis_id, core_client, expected_events):
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/intermediate",
@@ -66,15 +71,20 @@ def test_200_submit_receive_intermediate(test_client, rng, analysis_id, core_cli
 
     r = test_client.get(
         model.url.path,
-        auth=BearerAuth(issue_client_access_token()),
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
     )
 
     assert r.status_code == status.HTTP_200_OK
     assert r.read() == blob
 
 
+@pytest.mark.parametrize(
+    "expected_events",
+    [("intermediate.put.success", "intermediate.object.get.success")],
+    indirect=True,
+)
 def test_200_submit_receive_intermediate_encrypted(
-    test_client, core_client, rng, analysis_id, remote_node_and_private_key
+    test_client, core_client, rng, analysis_id, remote_node_and_private_key, expected_events
 ):
     remote_node, remote_private_key = remote_node_and_private_key
     blob = next_random_bytes(rng)
@@ -93,7 +103,7 @@ def test_200_submit_receive_intermediate_encrypted(
 
     r = test_client.get(
         model.url.path,
-        auth=BearerAuth(issue_client_access_token()),
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
     )
 
     _, public_key = get_test_ecdh_keypair()
@@ -101,7 +111,8 @@ def test_200_submit_receive_intermediate_encrypted(
     assert blob == decrypt_default(load_ecdh_private_key(remote_private_key), public_key, r.read())
 
 
-def test_400_submit_encrypted_no_remote_public_key(test_client, rng, analysis_id, node, core_client):
+@pytest.mark.parametrize("expected_events", ["intermediate.put.failure"], indirect=True)
+def test_400_submit_encrypted_no_remote_public_key(test_client, rng, analysis_id, node, core_client, expected_events):
     r = test_client.put(
         "/intermediate",
         auth=BearerAuth(issue_client_access_token(analysis_id)),
@@ -115,7 +126,8 @@ def test_400_submit_encrypted_no_remote_public_key(test_client, rng, analysis_id
     assert detail_of(r) == f"Remote node with ID {node.id} does not provide a public key"
 
 
-def test_404_invalid_id(test_client):
+@pytest.mark.parametrize("expected_events", ["intermediate.object.get.failure"], indirect=True)
+def test_404_invalid_id(test_client, expected_events):
     rand_uuid = str(uuid.uuid4())
     r = test_client.get(
         f"/intermediate/{rand_uuid}",
@@ -126,7 +138,8 @@ def test_404_invalid_id(test_client):
     assert detail_of(r) == f"Object with ID {rand_uuid} does not exist"
 
 
-def test_404_no_remote_node(test_client, analysis_id, core_client, rng):
+@pytest.mark.parametrize("expected_events", ["intermediate.put.failure"], indirect=True)
+def test_404_no_remote_node(test_client, analysis_id, core_client, rng, expected_events):
     rand_uuid = str(uuid.uuid4())
     r = test_client.put(
         "/intermediate",
@@ -141,7 +154,8 @@ def test_404_no_remote_node(test_client, analysis_id, core_client, rng):
     assert detail_of(r) == f"Remote node with ID {rand_uuid} does not exist."
 
 
-def test_404_submit_invalid_id(test_client, rng):
+@pytest.mark.parametrize("expected_events", ["intermediate.put.failure"], indirect=True)
+def test_404_submit_invalid_id(test_client, rng, expected_events):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.put(
@@ -154,6 +168,11 @@ def test_404_submit_invalid_id(test_client, rng):
     assert detail_of(r) == f"Temp bucket for analysis with ID {rand_uuid} was not found"
 
 
+@pytest.mark.parametrize(
+    "expected_events",
+    [("intermediate.put.success", "intermediate.object.get.failure")],
+    indirect=True,
+)
 def test_400_decrypt_intermediate(
     test_client,
     core_client,
@@ -163,6 +182,7 @@ def test_400_decrypt_intermediate(
     node,
     rng,
     realm_id,
+    expected_events,
 ):
     blob = next_random_bytes(rng)
     r = test_client.put(

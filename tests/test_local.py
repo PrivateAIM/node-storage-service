@@ -17,13 +17,18 @@ from tests.common.env import hub_adapter_client_id
 pytestmark = pytest.mark.live
 
 
-def test_200_submit_receive_from_local(test_client, rng, core_client, project_id, analysis_id, minio, postgres):
+def _db_snapshot(postgres):
+    with postgres.atomic():
+        return crud.Result.select().count(), crud.Tag.select().count(), crud.TaggedResult.select().count()
+
+
+@pytest.mark.parametrize("expected_events", [("local.put.success", "local.object.get.success")], indirect=True)
+def test_200_submit_receive_from_local(
+    test_client, rng, core_client, project_id, analysis_id, minio, postgres, expected_events
+):
     bucket = os.environ.get("MINIO__BUCKET")
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
-    with crud.bind_to(postgres):
-        n_results = len(crud.Result.select())
-        n_tags = len(crud.Tag.select())
-        n_tagged_results = len(crud.TaggedResult.select())
+    before_snapshot = _db_snapshot(postgres)
 
     blob = next_random_bytes(rng)
     r = test_client.put(
@@ -37,10 +42,7 @@ def test_200_submit_receive_from_local(test_client, rng, core_client, project_id
     # Check that there is exactly one new object inside the MinIO bucket, but no new database entries since the result
     # is untagged.
     assert len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects + 1
-    with crud.bind_to(postgres):
-        assert len(crud.Result.select()) == n_results
-        assert len(crud.Tag.select()) == n_tags
-        assert len(crud.TaggedResult.select()) == n_tagged_results
+    assert _db_snapshot(postgres) == before_snapshot
 
     model = LocalUploadResponse(**r.json())
     r = test_client.get(
@@ -52,7 +54,8 @@ def test_200_submit_receive_from_local(test_client, rng, core_client, project_id
     assert r.read() == blob
 
 
-def test_404_unknown_oid(test_client, core_client, analysis_id):
+@pytest.mark.parametrize("expected_events", ["local.object.get.failure"], indirect=True)
+def test_404_unknown_oid(test_client, core_client, analysis_id, expected_events):
     oid = uuid.uuid4()
     r = test_client.get(
         f"/local/{oid}",
@@ -63,7 +66,8 @@ def test_404_unknown_oid(test_client, core_client, analysis_id):
     assert detail_of(r) == f"Object with ID {oid} does not exist"
 
 
-def test_200_result_from_another_analysis(test_client, core_client, analysis_id_factory, rng):
+@pytest.mark.parametrize("expected_events", [("local.put.success", "local.object.get.success")], indirect=True)
+def test_200_result_from_another_analysis(test_client, core_client, analysis_id_factory, rng, expected_events):
     first_analysis_id, second_analysis_id = analysis_id_factory(), analysis_id_factory()
 
     blob = next_random_bytes(rng)
@@ -79,7 +83,10 @@ def test_200_result_from_another_analysis(test_client, core_client, analysis_id_
     assert r.read() == blob
 
 
-def test_404_result_from_another_project(test_client, core_client, rng, project_id_factory, analysis_id_factory):
+@pytest.mark.parametrize("expected_events", [("local.put.success", "local.object.get.failure")], indirect=True)
+def test_404_result_from_another_project(
+    test_client, core_client, rng, project_id_factory, analysis_id_factory, expected_events
+):
     first_analysis_id = analysis_id_factory(project_id_factory())
     second_analysis_id = analysis_id_factory(project_id_factory())
 
@@ -97,14 +104,12 @@ def test_404_result_from_another_project(test_client, core_client, rng, project_
     assert detail_of(r) == f"Object with ID {object_id} does not exist"
 
 
-def test_400_delete_results(test_client, project_id, minio, postgres):
+@pytest.mark.parametrize("expected_events", ["local.delete.failure"], indirect=True)
+def test_400_delete_results(test_client, project_id, minio, postgres, expected_events):
     bucket = os.environ.get("MINIO__BUCKET")
 
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
-    with crud.bind_to(postgres):
-        n_results = len(crud.Result.select())
-        n_tags = len(crud.Tag.select())
-        n_tagged_results = len(crud.TaggedResult.select())
+    before_snapshot = _db_snapshot(postgres)
 
     r = test_client.delete(
         "/local",
@@ -117,20 +122,15 @@ def test_400_delete_results(test_client, project_id, minio, postgres):
 
     # Test that nothing was deleted.
     assert len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects
-    with crud.bind_to(postgres):
-        assert len(crud.Result.select()) == n_results
-        assert len(crud.Tag.select()) == n_tags
-        assert len(crud.TaggedResult.select()) == n_tagged_results
+    assert _db_snapshot(postgres) == before_snapshot
 
 
-def test_403_delete_results(test_client, project_id, minio, postgres):
+@pytest.mark.parametrize("expected_events", ["local.delete.failure"], indirect=True)
+def test_403_delete_results(test_client, project_id, minio, postgres, expected_events):
     bucket = os.environ.get("MINIO__BUCKET")
 
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
-    with crud.bind_to(postgres):
-        n_results = len(crud.Result.select())
-        n_tags = len(crud.Tag.select())
-        n_tagged_results = len(crud.TaggedResult.select())
+    before_snapshot = _db_snapshot(postgres)
 
     client_id = str(uuid.uuid4())
     r = test_client.delete(
@@ -146,13 +146,11 @@ def test_403_delete_results(test_client, project_id, minio, postgres):
 
     # Test that nothing was deleted.
     assert len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects
-    with crud.bind_to(postgres):
-        assert len(crud.Result.select()) == n_results
-        assert len(crud.Tag.select()) == n_tags
-        assert len(crud.TaggedResult.select()) == n_tagged_results
+    assert _db_snapshot(postgres) == before_snapshot
 
 
-def test_200_delete_results(test_client, core_client, rng, minio, postgres):
+@pytest.mark.parametrize("expected_events", [("local.put.success", "local.delete.success")], indirect=True)
+def test_200_delete_results(test_client, core_client, rng, minio, postgres, expected_events):
     project = core_client.create_project(name=next_prefixed_name())
     analysis = core_client.create_analysis(project_id=project.id, name=next_prefixed_name())
 
@@ -171,10 +169,7 @@ def test_200_delete_results(test_client, core_client, rng, minio, postgres):
     core_client.delete_analysis(analysis.id)
     core_client.delete_project(project.id)
 
-    with crud.bind_to(postgres):
-        n_results = len(crud.Result.select())
-        n_tags = len(crud.Tag.select())
-        n_tagged_results = len(crud.TaggedResult.select())
+    before_snapshot = _db_snapshot(postgres)
 
     r = test_client.delete(
         "/local",
@@ -187,14 +182,16 @@ def test_200_delete_results(test_client, core_client, rng, minio, postgres):
     bucket = os.environ.get("MINIO__BUCKET")
     assert len(list(minio.list_objects(bucket, prefix=f"local/{project.id}/"))) == 0
 
-    # Untagged results should not create any entries inside the postgres database.
-    with crud.bind_to(postgres):
-        assert len(crud.Result.select()) == n_results
-        assert len(crud.Tag.select()) == n_tags
-        assert len(crud.TaggedResult.select()) == n_tagged_results
+    # Untagged results should not create any entries inside the postgres result database.
+    assert _db_snapshot(postgres) == before_snapshot
 
 
-def test_200_upload_local_file(test_client, core_client, rng, analysis_id):
+@pytest.mark.parametrize(
+    "expected_events",
+    [("local.put.success", "local.upload.put.success", "local.object.get.success")],
+    indirect=True,
+)
+def test_200_upload_local_file(test_client, core_client, rng, analysis_id, expected_events):
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/local",

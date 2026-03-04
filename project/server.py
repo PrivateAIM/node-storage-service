@@ -4,9 +4,13 @@ from pathlib import Path
 
 import flame_hub
 from fastapi import FastAPI, Request, HTTPException
+import peewee as pw
+from psycopg2 import DatabaseError
 from pydantic import BaseModel
 from starlette import status
 
+from project.crud import Postgres
+from project.event_logging import EventLogger
 from project.routers import final, intermediate, local
 from opendp.mod import enable_features
 
@@ -64,7 +68,19 @@ async def lifespan(_: FastAPI):
     # Enable features in OpenDP
     enable_features("contrib")
 
+    # Set up Postgres database to store results.
+    postgres = Postgres()
+    postgres.setup()
+
+    # Set up the logger for event logging.
+    event_logger = EventLogger()
+    if event_logger.enabled:
+        event_logger.setup()
+
     yield
+
+    # Close all connections to the database. Note that it is not necessary to call event_logger.teardown.
+    postgres.teardown()
 
 
 def get_server_instance():
@@ -123,17 +139,26 @@ def get_server_instance():
     # re-raise as an http exception
     @_app.exception_handler(flame_hub.HubAPIError)
     async def handle_hub_api_error(_: Request, exc: flame_hub.HubAPIError):
-        logger.exception("unexpected response from remote", exc_info=exc)
-
         remote_status_code = "unknown"
-
         if exc.error_response is not None:
             remote_status_code = exc.error_response.status_code
 
+        error_msg = f"Unexpected response from Hub (status code {remote_status_code}): '{exc}'."
+        logger.exception(error_msg)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Hub returned an unexpected response ({remote_status_code})",
+            detail=error_msg,
         )
+
+    async def handle_database_error(_: Request, exc: pw.PeeweeException | DatabaseError):
+        logger.exception(f"Unexpected database error: '{exc}'.")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected database error.",
+        )
+
+    _app.add_exception_handler(pw.PeeweeException, handle_database_error)
+    _app.add_exception_handler(DatabaseError, handle_database_error)
 
     _app.include_router(
         final.router,

@@ -8,26 +8,30 @@ from tests.common.auth import BearerAuth, issue_client_access_token, issue_acces
 from tests.common.rest import detail_of
 
 endpoints = [
-    ("GET", f"/intermediate/{uuid.uuid4()}"),  # UUID can be arbitrary for auth checks
-    ("PUT", "/intermediate"),
-    ("GET", f"/local/{uuid.uuid4()}"),
-    ("PUT", "/local"),
-    ("PUT", "/final"),
-    ("GET", "/local/tags"),
-    ("GET", f"/local/tags/{uuid.uuid4()}"),
+    ("PUT", "/local", "auth.failure"),
+    ("DELETE", "/local", "auth.failure"),
+    ("GET", f"/local/{uuid.uuid4()}", "auth.failure"),  # UUID can be arbitrary for auth checks.
+    ("GET", "/local/tags", "auth.failure"),
+    ("POST", "/local/tags", "auth.failure"),
+    ("GET", f"/local/tags/{uuid.uuid4()}", "auth.failure"),
+    ("PUT", "/local/upload", "auth.failure"),
+    ("PUT", "/intermediate", "auth.failure"),
+    ("GET", f"/intermediate/{uuid.uuid4()}", "auth.failure"),
+    ("PUT", "/final", "auth.failure"),
+    ("PUT", "/final/localdp", "auth.failure"),
 ]
 
 
-@pytest.mark.parametrize("method,path", endpoints)
-def test_403_no_auth_header(test_client, method, path):
+@pytest.mark.parametrize("method,path,expected_events", endpoints, indirect=["expected_events"])
+def test_403_no_auth_header(test_client, method, path, expected_events):
     r = test_client.request(method, path)
 
     assert r.status_code == status.HTTP_401_UNAUTHORIZED
     assert detail_of(r) == "Not authenticated"
 
 
-@pytest.mark.parametrize("method,path", endpoints)
-def test_403_jwt_expired(test_client, method, path):
+@pytest.mark.parametrize("method,path,expected_events", endpoints, indirect=["expected_events"])
+def test_403_jwt_expired(test_client, method, path, expected_events):
     r = test_client.request(
         method,
         path,
@@ -43,8 +47,8 @@ def test_403_jwt_expired(test_client, method, path):
     assert detail_of(r) == "JWT is malformed"
 
 
-@pytest.mark.parametrize("method,path", endpoints)
-def test_403_no_client_id_claim(test_client, method, path):
+@pytest.mark.parametrize("method,path,expected_events", endpoints, indirect=["expected_events"])
+def test_403_no_client_id_claim(test_client, method, path, expected_events):
     r = test_client.request(method, path, auth=BearerAuth(issue_access_token()))
 
     assert r.status_code == status.HTTP_403_FORBIDDEN

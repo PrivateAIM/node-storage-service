@@ -13,8 +13,9 @@ from project.dependencies import (
     get_core_client,
     get_storage_client,
 )
+from project.event_logging import EventLoggingRoute
 
-router = APIRouter()
+router = APIRouter(route_class=EventLoggingRoute)
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +24,7 @@ logger = logging.getLogger(__name__)
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Upload final result with Local DP to Hub",
     operation_id="putFinalResultWithLocalDP",
+    name="final.localdp.put",
 )
 async def submit_final_single_value_with_local_dp_result_to_hub(
     client_id: Annotated[str, Depends(get_client_id)],
@@ -83,6 +85,7 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Upload file as final result to Hub",
     operation_id="putFinalResult",
+    name="final.put",
 )
 async def submit_final_result_to_hub(
     client_id: Annotated[str, Depends(get_client_id)],
