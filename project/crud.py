@@ -64,7 +64,7 @@ class Postgres:
 
     def teardown(self):
         """Closes all connections inside the pool. This is meant to be called during lifespan spin down."""
-        self.db.close()
+        self.db.close_all()
 
 
 postgres: Postgres = Postgres()
