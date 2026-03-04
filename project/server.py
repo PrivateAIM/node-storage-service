@@ -9,8 +9,8 @@ from psycopg2 import DatabaseError
 from pydantic import BaseModel
 from starlette import status
 
-from project.crud import postgres
-from project.event_logging import event_logger
+from project.crud import Postgres
+from project.event_logging import EventLogger
 from project.routers import final, intermediate, local
 from opendp.mod import enable_features
 
@@ -69,9 +69,11 @@ async def lifespan(_: FastAPI):
     enable_features("contrib")
 
     # Set up Postgres database to store results.
+    postgres = Postgres()
     postgres.setup()
 
     # Set up the logger for event logging.
+    event_logger = EventLogger()
     if event_logger.enabled:
         event_logger.setup()
 

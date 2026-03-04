@@ -40,8 +40,14 @@ class TaggedResult(BaseModel):
 
 
 class Postgres:
-    def __init__(self):
-        logger.info("Initializing connection to Postgres for storing tags and result metadata")
+    """Base class for handling a connection to Postgres database. This class is implemented as a singleton."""
+
+    _instances = {}
+
+    def __new__(cls):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__new__(cls)
+        return cls._instances[cls]
 
     @cached_property
     def db(self):
@@ -54,6 +60,7 @@ class Postgres:
 
     def setup(self):
         """Initializes a configured database with the help of the database proxy that is already bound to the models."""
+        logger.info("Initializing connection to Postgres for storing tags and result metadata.")
         if proxy.obj is not None:
             raise pw.PeeweeException("Database proxy is already initialized.")
         proxy.initialize(self.db)
@@ -65,6 +72,3 @@ class Postgres:
     def teardown(self):
         """Closes all connections inside the pool. This is meant to be called during lifespan spin down."""
         self.db.close_all()
-
-
-postgres: Postgres = Postgres()

@@ -146,19 +146,12 @@ def annotate_event(event_name: str, status_code: int) -> tuple[str, EventTag]:
 
 
 class EventLogger(Postgres):
-    """Event logging utility. This class is instantiated as event_logger in this module. event_logger is meant as a
-    singleton. Do not instantiate this class again and use event_logger instead."""
+    """Event logging utility. Note that this class is implemented as a singleton."""
 
-    enabled: bool = get_settings().postgres.event_logging
-
-    def __init__(self):
-        super().__init__()
-        logger.info(f"Event logging set to {'enabled' if self.enabled else 'disabled'}.")
-        # Add the attributes model to the mapping to enable validation of attributes.
-        EventModelMap.mapping = {
-            event_name: event_data.get("model", AuthenticatedRequestAttributes)
-            for event_name, event_data in ANNOTATED_EVENTS.items()
-        }
+    @cached_property
+    def enabled(self):
+        # assert False, "enabled setter"
+        return get_settings().postgres.event_logging
 
     @cached_property
     def core_client(self):
@@ -170,12 +163,22 @@ class EventLogger(Postgres):
 
     def setup(self):
         """Initializes the database and tests the connection. This is meant to be called during lifespan spin up."""
+        logger.info("Initializing connection to Postgres for storing event logs.")
+        logger.info(f"Event logging set to {'enabled' if self.enabled else 'disabled'}.")
+        # Add the attributes model to the mapping to enable validation of attributes.
+        EventModelMap.mapping = {
+            event_name: event_data.get("model", AuthenticatedRequestAttributes)
+            for event_name, event_data in ANNOTATED_EVENTS.items()
+        }
         init_db(self.db)
         self.test_connection()
         logger.info(f"Event logging enabled, connected to database at port {get_settings().postgres.port}.")
 
     def log_event(self, request: Request, status_code: int):
         """Log incoming FastAPI request."""
+        if not self.enabled:
+            return
+
         # Set event name to unknown if route is not present.
         route = request.scope.get("route")
         if route is None:
@@ -251,9 +254,6 @@ class EventLogger(Postgres):
                 logger.warning("Failed to log event")
 
 
-event_logger: EventLogger = EventLogger()
-
-
 class EventLoggingRoute(APIRoute):
     """Route class to wrap route handler to log events when endpoints are called."""
 
@@ -262,7 +262,7 @@ class EventLoggingRoute(APIRoute):
 
         def safe_log(request: Request, status_code: int):
             try:
-                event_logger.log_event(request, status_code)
+                EventLogger().log_event(request, status_code)
             except Exception:
                 logger.exception("Failed to log event.")
 
@@ -282,4 +282,4 @@ class EventLoggingRoute(APIRoute):
                 safe_log(request, status.HTTP_500_INTERNAL_SERVER_ERROR)
                 raise
 
-        return log_event if event_logger.enabled else original_handler
+        return log_event
