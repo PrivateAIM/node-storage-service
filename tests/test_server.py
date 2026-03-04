@@ -38,7 +38,7 @@ def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, ana
         test_client.app.dependency_overrides.pop(get_storage_client)
 
 
-def test_database_exception_handler(monkeypatch, test_client, analysis_id):
+def test_database_exception_handler(test_client, analysis_id):
     def override_postgres():
         return pw.PostgresqlDatabase("test")
 
