@@ -260,19 +260,26 @@ class EventLoggingRoute(APIRoute):
     def get_route_handler(self):
         original_handler = super().get_route_handler()
 
+        def safe_log(request: Request, status_code: int):
+            try:
+                event_logger.log_event(request, status_code)
+            except Exception as e:
+                logger.exception(f"Failed to log event: {e}")
+
         # TODO: handle exceptions for streaming responses
         async def log_event(request: Request):
             try:
                 response = await original_handler(request)
-                event_logger.log_event(request, response.status_code)
+                safe_log(request, response.status_code)
                 return response
             except HTTPException as e:
-                event_logger.log_event(request, e.status_code)
+                safe_log(request, e.status_code)
                 raise
             except RequestValidationError:
-                event_logger.log_event(request, status.HTTP_422_UNPROCESSABLE_TYPE)
+                safe_log(request, status.HTTP_422_UNPROCESSABLE_ENTITY)
+                raise
             except Exception:
-                event_logger.log_event(request, status.HTTP_500_INTERNAL_SERVER_ERROR)
+                safe_log(request, status.HTTP_500_INTERNAL_SERVER_ERROR)
                 raise
 
         return log_event if event_logger.enabled else original_handler
