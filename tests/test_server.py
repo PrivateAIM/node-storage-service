@@ -2,6 +2,7 @@ import uuid
 
 from flame_hub import HubAPIError
 import peewee as pw
+import pytest
 from starlette import status
 
 from project.dependencies import get_storage_client, get_postgres_db
@@ -15,6 +16,7 @@ def test_load_pyproject():
     _ = load_pyproject()
 
 
+@pytest.mark.live
 def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, analysis_id):
     def raise_error(_):
         raise HubAPIError(
@@ -38,6 +40,7 @@ def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, ana
         test_client.app.dependency_overrides.pop(get_storage_client)
 
 
+@pytest.mark.live
 def test_database_exception_handler(test_client, analysis_id):
     def override_postgres():
         return pw.PostgresqlDatabase("test")
