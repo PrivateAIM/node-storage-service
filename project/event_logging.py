@@ -150,7 +150,6 @@ class EventLogger(Postgres):
 
     @cached_property
     def enabled(self):
-        # assert False, "enabled setter"
         return get_settings().postgres.event_logging
 
     @cached_property
@@ -214,8 +213,13 @@ class EventLogger(Postgres):
         template_kwargs |= dict(request.query_params) | request.path_params | {"client_id": client_id}
 
         if client_id is not None:
-            # If client_id is an analysis_id, retrieve more information from the Hub about the analysis and project.
-            analysis = self.core_client.get_analysis(analysis_id=client_id)
+            # If client_id is a UUID, try to find an analysis with that ID.
+            try:
+                uuid.UUID(client_id)
+            except ValueError:
+                analysis = None
+            else:
+                analysis = self.core_client.get_analysis(analysis_id=client_id)
             if analysis is not None:
                 template_kwargs.update(
                     {
