@@ -818,14 +818,14 @@ files = [
 
 [[package]]
 name = "flame-hub-client"
-version = "0.2.12"
+version = "0.2.13"
 description = "HTTP client for interacting with FLAME Hub services."
 optional = false
 python-versions = "<4,>=3.10"
 groups = ["main"]
 files = [
-    {file = "flame_hub_client-0.2.12-py3-none-any.whl", hash = "sha256:ccb5738602d7159ab0e561505d7e5dbbcdc470b40859d815640d4521a6db8e0b"},
-    {file = "flame_hub_client-0.2.12.tar.gz", hash = "sha256:86e6e392d4714afe75b9e655d25bbcb425315f3a96df8ad97f1e1b33461dc918"},
+    {file = "flame_hub_client-0.2.13-py3-none-any.whl", hash = "sha256:14a130cdf4910b2f20a48071ef83df3b8202fc74a5e8055707104c6c46c23f8a"},
+    {file = "flame_hub_client-0.2.13.tar.gz", hash = "sha256:bafdb58c194f079d4ac3e8b5a12d194b4bd21bba5a542a6f8719da95bf4cb1cd"},
 ]
 
 [package.dependencies]
