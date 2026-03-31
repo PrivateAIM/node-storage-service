@@ -9,6 +9,9 @@ from project.dependencies import get_ecdh_private_key
 from project.routers.local import (
     LocalUploadResponse,
 )
+from project.routers.intermediate import (
+    IntermediateUploadResponse,
+)
 from tests.common.auth import BearerAuth, issue_client_access_token
 from tests.common.helpers import (
     next_random_bytes,
@@ -195,7 +198,7 @@ def test_200_delete_results(test_client, core_client, rng, minio, postgres, expe
 
 @pytest.mark.parametrize(
     "expected_events",
-    [("local.put.success", "local.upload.put.success", "local.object.get.success")],
+    [("local.put.success", "local.upload.put.success", "intermediate.object.get.success")],
     indirect=True,
 )
 def test_200_upload_local_file(
@@ -234,6 +237,8 @@ def test_200_upload_local_file(
     analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id}).pop()
 
     assert analysis_bucket_file.path == str(model.object_id)
+
+    model = IntermediateUploadResponse(**r.json())
 
     # Temporarily change the private key to simulate another node to be able to decrypt data.
     reset_private_key = temporarily_change_dependency(test_client, get_ecdh_private_key, lambda: remote_private_key)
