@@ -363,7 +363,7 @@ def this_node(core_client, realm_id):
     _, public_key = get_test_ecdh_keypair()
     # Also update node reference.
     node = core_client.update_node(
-        node, public_key=public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode("ascii")
+        node, public_key=public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).hex()
     )
     yield node
     core_client.delete_node(node.id)
@@ -374,7 +374,7 @@ def remote_node_and_private_key(core_client, realm_id):
     node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
     private_key, public_key = next_ecdh_keypair_bytes()
     # Also update node reference.
-    node = core_client.update_node(node, public_key=public_key.decode("ascii"))
+    node = core_client.update_node(node, public_key=public_key.hex())
     yield node, load_pem_private_key(private_key, password=None)
     core_client.delete_node(node.id)
 
