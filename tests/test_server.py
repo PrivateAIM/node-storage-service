@@ -8,6 +8,7 @@ from starlette import status
 from project.dependencies import get_storage_client, get_postgres_db
 from project.server import load_pyproject
 from tests.common.auth import BearerAuth, issue_client_access_token
+from tests.common.helpers import temporarily_change_dependency
 from tests.common.rest import detail_of
 
 
@@ -26,22 +27,21 @@ def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, ana
 
     monkeypatch.setattr(storage_client, "get_bucket_file", raise_error)
 
-    old_override_storage_client = test_client.app.dependency_overrides.get(get_storage_client, None)
-    test_client.app.dependency_overrides[get_storage_client] = lambda: storage_client
+    reset_storage_client = temporarily_change_dependency(test_client, get_storage_client, lambda: storage_client)
 
     try:
         r = test_client.get(
             f"/intermediate/{uuid.uuid4()}",
             auth=BearerAuth(issue_client_access_token(analysis_id)),
+            params={
+                "remote_node_id": str(uuid.uuid4()),
+            },
         )
 
         assert r.status_code == status.HTTP_502_BAD_GATEWAY
         assert detail_of(r) == "Unexpected response from Hub (status code unknown): 'Test Error'."
     finally:
-        if old_override_storage_client is None:
-            test_client.app.dependency_overrides.pop(get_storage_client)
-        else:
-            test_client.app.dependency_overrides[get_storage_client] = old_override_storage_client
+        reset_storage_client()
 
 
 @pytest.mark.live

@@ -375,6 +375,7 @@ async def retrieve_intermediate_result_from_local(
 async def upload_local_file(
     object_id: uuid.UUID,
     request: Request,
+    remote_node_id: str,
     client_id: Annotated[str, Depends(get_client_id)],
     minio: Annotated[Minio, Depends(get_local_minio)],
     settings: Annotated[Settings, Depends(get_settings)],
@@ -382,7 +383,6 @@ async def upload_local_file(
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
     db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     private_key: Annotated[ec.EllipticCurvePrivateKey, Depends(get_ecdh_private_key)],
-    remote_node_id: Annotated[str | None, Form()] = None,
 ):
     """Upload a local file directly to the FLAME Hub so that the requesting service does not have to load the file in
     its working memory to use the intermediate upload endpoint. Returns a 200 on success. This endpoint returns a link
