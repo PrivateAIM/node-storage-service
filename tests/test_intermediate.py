@@ -68,19 +68,20 @@ def test_400_submit_encrypted_no_remote_public_key(
 ):
     node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
 
-    r = test_client.put(
-        "/intermediate",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
-        files=wrap_bytes_for_request(next_random_bytes(rng)),
-        data={
-            "remote_node_id": str(node.id),
-        },
-    )
+    try:
+        r = test_client.put(
+            "/intermediate",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            files=wrap_bytes_for_request(next_random_bytes(rng)),
+            data={
+                "remote_node_id": str(node.id),
+            },
+        )
+    finally:
+        core_client.delete_node(node.id)
 
     assert r.status_code == status.HTTP_400_BAD_REQUEST
     assert detail_of(r) == f"Remote node with ID {node.id} does not provide a public key"
-
-    core_client.delete_node(node.id)
 
 
 @pytest.mark.parametrize("expected_events", ["intermediate.object.get.failure"], indirect=True)
