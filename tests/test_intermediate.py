@@ -1,90 +1,31 @@
 import uuid
 
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 import pytest
 from starlette import status
 
-from project.crypto import decrypt_default, load_ecdh_private_key
+from project.dependencies import get_ecdh_private_key
 from project.routers.intermediate import IntermediateUploadResponse
 from tests.common.auth import (
     BearerAuth,
     issue_client_access_token,
-    get_test_ecdh_keypair,
 )
 from tests.common.helpers import (
     next_random_bytes,
     next_uuid,
-    next_ecdh_keypair_bytes,
+    temporarily_change_dependency,
 )
 from tests.common.rest import wrap_bytes_for_request, detail_of
 
 pytestmark = pytest.mark.live
 
 
-@pytest.fixture()
-def node(core_client, realm_id):
-    node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
-    yield node
-    core_client.delete_node(node.id)
-
-
-@pytest.fixture()
-def this_node(core_client, realm_id):
-    node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
-    _, public_key = get_test_ecdh_keypair()
-    # Also update node reference.
-    node = core_client.update_node(
-        node, public_key=public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).decode("ascii")
-    )
-    yield node
-    core_client.delete_node(node.id)
-
-
-@pytest.fixture()
-def remote_node_and_private_key(core_client, realm_id):
-    node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
-    private_key, public_key = next_ecdh_keypair_bytes()
-    # Also update node reference.
-    node = core_client.update_node(node, public_key=public_key.decode("ascii"))
-    yield node, private_key
-    core_client.delete_node(node.id)
-
-
 @pytest.mark.parametrize(
     "expected_events",
     [("intermediate.put.success", "intermediate.object.get.success")],
     indirect=True,
 )
-def test_200_submit_receive_intermediate(test_client, rng, analysis_id, core_client, expected_events):
-    blob = next_random_bytes(rng)
-    r = test_client.put(
-        "/intermediate",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
-        files=wrap_bytes_for_request(blob),
-    )
-
-    assert r.status_code == status.HTTP_200_OK
-
-    # Check that the response contains a path to a valid resource.
-    model = IntermediateUploadResponse(**r.json())
-    assert str(model.object_id) in str(model.url.path)
-
-    r = test_client.get(
-        model.url.path,
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
-    )
-
-    assert r.status_code == status.HTTP_200_OK
-    assert r.read() == blob
-
-
-@pytest.mark.parametrize(
-    "expected_events",
-    [("intermediate.put.success", "intermediate.object.get.success")],
-    indirect=True,
-)
-def test_200_submit_receive_intermediate_encrypted(
-    test_client, core_client, rng, analysis_id, remote_node_and_private_key, expected_events
+def test_200_encrypt_and_decrypt(
+    test_client, core_client, rng, analysis_id, remote_node_and_private_key, this_node, expected_events
 ):
     remote_node, remote_private_key = remote_node_and_private_key
     blob = next_random_bytes(rng)
@@ -101,26 +42,43 @@ def test_200_submit_receive_intermediate_encrypted(
 
     model = IntermediateUploadResponse(**r.json())
 
-    r = test_client.get(
-        model.url.path,
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
-    )
+    # Temporarily change the private key to simulate another node to be able to decrypt data.
+    reset_private_key = temporarily_change_dependency(test_client, get_ecdh_private_key, lambda: remote_private_key)
 
-    _, public_key = get_test_ecdh_keypair()
+    try:
+        r = test_client.get(
+            model.url.path,
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            params={"remote_node_id": this_node.id},
+        )
+    finally:
+        reset_private_key()
 
-    assert blob == decrypt_default(load_ecdh_private_key(remote_private_key), public_key, r.read())
+    assert blob == r.read()
 
 
 @pytest.mark.parametrize("expected_events", ["intermediate.put.failure"], indirect=True)
-def test_400_submit_encrypted_no_remote_public_key(test_client, rng, analysis_id, node, core_client, expected_events):
-    r = test_client.put(
-        "/intermediate",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
-        files=wrap_bytes_for_request(next_random_bytes(rng)),
-        data={
-            "remote_node_id": str(node.id),
-        },
-    )
+def test_400_submit_encrypted_no_remote_public_key(
+    test_client,
+    rng,
+    analysis_id,
+    core_client,
+    realm_id,
+    expected_events,
+):
+    node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
+
+    try:
+        r = test_client.put(
+            "/intermediate",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            files=wrap_bytes_for_request(next_random_bytes(rng)),
+            data={
+                "remote_node_id": str(node.id),
+            },
+        )
+    finally:
+        core_client.delete_node(node.id)
 
     assert r.status_code == status.HTTP_400_BAD_REQUEST
     assert detail_of(r) == f"Remote node with ID {node.id} does not provide a public key"
@@ -132,6 +90,7 @@ def test_404_invalid_id(test_client, expected_events):
     r = test_client.get(
         f"/intermediate/{rand_uuid}",
         auth=BearerAuth(issue_client_access_token()),
+        params={"remote_node_id": str(uuid.uuid4())},
     )
 
     assert r.status_code == status.HTTP_404_NOT_FOUND
@@ -155,13 +114,16 @@ def test_404_no_remote_node(test_client, analysis_id, core_client, rng, expected
 
 
 @pytest.mark.parametrize("expected_events", ["intermediate.put.failure"], indirect=True)
-def test_404_submit_invalid_id(test_client, rng, expected_events):
+def test_404_submit_invalid_client_id(test_client, rng, expected_events):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.put(
         "/intermediate",
         auth=BearerAuth(issue_client_access_token(rand_uuid)),
         files=wrap_bytes_for_request(next_random_bytes(rng)),
+        data={
+            "remote_node_id": str(uuid.uuid4()),
+        },
     )
 
     assert r.status_code == status.HTTP_404_NOT_FOUND
@@ -179,18 +141,18 @@ def test_400_decrypt_intermediate(
     analysis_id,
     this_node,
     remote_node_and_private_key,
-    node,
     rng,
     realm_id,
     expected_events,
 ):
     blob = next_random_bytes(rng)
+    remote_node, _ = remote_node_and_private_key
     r = test_client.put(
         "/intermediate",
         auth=BearerAuth(issue_client_access_token(analysis_id)),
         files=wrap_bytes_for_request(blob),
         data={
-            "remote_node_id": str(remote_node_and_private_key[0].id),
+            "remote_node_id": str(remote_node.id),
         },
     )
 
@@ -200,17 +162,16 @@ def test_400_decrypt_intermediate(
     model = IntermediateUploadResponse(**r.json())
     assert str(model.object_id) in str(model.url.path)
 
-    _, arbitrary_public_key = next_ecdh_keypair_bytes()
-    core_client.update_node(node.id, public_key=arbitrary_public_key.decode("ascii"))
-
     r = test_client.get(
         model.url.path,
         auth=BearerAuth(issue_client_access_token()),
-        params={"node_id": node.id},
+        params={"remote_node_id": this_node.id},
     )
 
+    # The file is encrypted for a remote node and therefore cannot be decrypted by the node that encrypted the file
+    # and of course all other nodes except that one remote node.
     assert r.status_code == status.HTTP_400_BAD_REQUEST
     assert detail_of(r) == (
         f"File with ID {model.object_id} cannot be decrypted under the assumption that the file was encrypted by node "
-        f"{node.id} for this node."
+        f"{this_node.id} for this node."
     )

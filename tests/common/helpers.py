@@ -7,6 +7,7 @@ from typing import Callable
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 import httpx
+from starlette.testclient import TestClient
 
 from tests.common import env
 
@@ -94,3 +95,16 @@ def wait_for_analysis_bucket_file(core_client: httpx.Client, analysis_id: str | 
         return len(analysis_bucket_files) == 1
 
     return eventually(wrapper)
+
+
+def temporarily_change_dependency(test_client: TestClient, dependency: Callable, callback: Callable):
+    old_dependency = test_client.app.dependency_overrides.get(dependency, None)
+    test_client.app.dependency_overrides[dependency] = callback
+
+    def _reset():
+        if old_dependency is None:
+            test_client.app.dependency_overrides.pop(dependency)
+        else:
+            test_client.app.dependency_overrides[dependency] = old_dependency
+
+    return _reset

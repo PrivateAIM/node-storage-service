@@ -65,7 +65,7 @@ async def submit_intermediate_result_to_hub(
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
     private_key: Annotated[ec.EllipticCurvePrivateKey, Depends(get_ecdh_private_key)],
-    remote_node_id: Annotated[str | None, Form()] = None,
+    remote_node_id: Annotated[str, Form()],
 ):
     """Upload a file as an intermediate result to the FLAME Hub.
     Returns a 200 on success.
@@ -84,12 +84,11 @@ async def submit_intermediate_result_to_hub(
     # TODO this should be chunked for large files, will be addressed in a later version
     result_file = file.file.read()
 
-    # encryption requested
-    if remote_node_id is not None:
-        remote_public_key = get_remote_node_public_key(core_client, remote_node_id)
+    # Get the public key of the remote node via the Hub.
+    remote_public_key = get_remote_node_public_key(core_client, remote_node_id)
 
-        # encrypt result file
-        result_file = crypto.encrypt_default(private_key, remote_public_key, result_file)
+    # Encrypt the given file with the public key of the remote node and the private key of this node.
+    result_file = crypto.encrypt_default(private_key, remote_public_key, result_file)
 
     bucket_file_lst = storage_client.upload_to_bucket(
         analysis_bucket.bucket_id,
@@ -106,7 +105,7 @@ async def submit_intermediate_result_to_hub(
             detail=f"Expected single uploaded file to be returned by storage service, got {len(bucket_file_lst)}",
         )
 
-    # retrieve uploaded bucket file
+    # Retrieve the uploaded bucket file.
     bucket_file = bucket_file_lst.pop()
 
     return IntermediateUploadResponse(
@@ -124,17 +123,17 @@ async def submit_intermediate_result_to_hub(
     "/{object_id}",
     summary="Get intermediate result as file from Hub",
     operation_id="getIntermediateResult",
-    # client id is not actually used here but required for auth. having this
-    # as a path dependency makes pycharm stop complaining about unused params.
+    # The client ID is not actually used here but required for authentication. Having this as a path dependency makes
+    # PyCharm stop complaining about unused parameters.
     dependencies=[Depends(get_client_id)],
     name="intermediate.object.get",
 )
 async def retrieve_intermediate_result_from_hub(
     object_id: uuid.UUID,
+    remote_node_id: str,
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
     private_key: Annotated[ec.EllipticCurvePrivateKey, Depends(get_ecdh_private_key)],
-    node_id: str | None = None,
 ):
     """Get an intermediate result as file from the FLAME Hub."""
     if storage_client.get_bucket_file(object_id) is None:
@@ -143,26 +142,19 @@ async def retrieve_intermediate_result_from_hub(
             detail=f"Object with ID {object_id} does not exist",
         )
 
-    # Check if the file can be decrypted with the retrieved remote node id.
-    if node_id is not None:
-        first_bytes = next(storage_client.stream_bucket_file(object_id))
-        remote_node_public_key = get_remote_node_public_key(core_client, node_id)
-        try:
-            crypto.decrypt_default(private_key, remote_node_public_key, first_bytes)
-        except InvalidTag:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File with ID {object_id} cannot be decrypted under the assumption that the file was encrypted "
-                f"by node {node_id} for this node.",
-            )
+    # TODO: chunk this
+    encrypted = b"".join(storage_client.stream_bucket_file(object_id))
+    remote_node_public_key = get_remote_node_public_key(core_client, remote_node_id)
+    try:
+        decrypted = crypto.decrypt_default(private_key, remote_node_public_key, encrypted)
+    except InvalidTag:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"File with ID {object_id} cannot be decrypted under the assumption that the file was encrypted "
+            f"by node {remote_node_id} for this node.",
+        )
 
-    async def _stream_bucket_file():
-        stream = storage_client.stream_bucket_file(object_id)
-        if node_id is None:
-            for b in stream:
-                yield b
-        else:
-            for b in stream:
-                yield crypto.decrypt_default(private_key, remote_node_public_key, b)
+    async def _stream_file():
+        yield decrypted
 
-    return StreamingResponse(_stream_bucket_file())
+    return StreamingResponse(_stream_file())

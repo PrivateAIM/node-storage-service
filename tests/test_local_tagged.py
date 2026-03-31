@@ -6,6 +6,7 @@ import pytest
 from starlette import status
 
 from project import crud
+from project.dependencies import get_ecdh_private_key
 from project.routers.local import (
     is_valid_tag,
     LocalUploadResponse,
@@ -20,6 +21,7 @@ from tests.common.helpers import (
     next_prefixed_name,
     next_random_string,
     wait_for_analysis_bucket_file,
+    temporarily_change_dependency,
 )
 from tests.common.rest import wrap_bytes_for_request, detail_of
 from tests.common.env import hub_adapter_client_id
@@ -277,7 +279,15 @@ def test_tag_existing_object(test_client, minio_object, project_id, analysis_id,
     [("local.put.success", "local.upload.put.success", "intermediate.object.get.success")],
     indirect=True,
 )
-def test_200_upload_local_file(test_client, core_client, rng, analysis_id, expected_events):
+def test_200_upload_local_file(
+    test_client,
+    core_client,
+    rng,
+    analysis_id,
+    this_node,
+    remote_node_and_private_key,
+    expected_events,
+):
     blob = next_random_bytes(rng)
     tag_name = next_random_string(charset=string.ascii_lowercase)
     filename = next_random_string()
@@ -292,10 +302,14 @@ def test_200_upload_local_file(test_client, core_client, rng, analysis_id, expec
 
     model = LocalUploadResponse(**r.json())
 
+    remote_node, remote_private_key = remote_node_and_private_key
     r = test_client.put(
         "/local/upload",
         auth=BearerAuth(issue_client_access_token(analysis_id)),
-        params={"object_id": model.object_id},
+        params={
+            "object_id": model.object_id,
+            "remote_node_id": str(remote_node.id),
+        },
     )
 
     assert r.status_code == status.HTTP_200_OK
@@ -308,10 +322,19 @@ def test_200_upload_local_file(test_client, core_client, rng, analysis_id, expec
 
     assert analysis_bucket_file.path == filename
 
-    r = test_client.get(
-        model.url.path,
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
-    )
+    # Temporarily change the private key to simulate another node to be able to decrypt data.
+    reset_private_key = temporarily_change_dependency(test_client, get_ecdh_private_key, lambda: remote_private_key)
+
+    try:
+        r = test_client.get(
+            model.url.path,
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            params={
+                "remote_node_id": str(this_node.id),
+            },
+        )
+    finally:
+        reset_private_key()
 
     assert r.status_code == status.HTTP_200_OK
     assert r.read() == blob
