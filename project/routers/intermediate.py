@@ -142,11 +142,11 @@ async def retrieve_intermediate_result_from_hub(
             detail=f"Object with ID {object_id} does not exist",
         )
 
-    # Check if the file can be decrypted with the retrieved remote node id.
-    first_bytes = next(storage_client.stream_bucket_file(object_id))
+    # TODO: chunk this
+    encrypted = b"".join(storage_client.stream_bucket_file(object_id))
     remote_node_public_key = get_remote_node_public_key(core_client, remote_node_id)
     try:
-        crypto.decrypt_default(private_key, remote_node_public_key, first_bytes)
+        decrypted = crypto.decrypt_default(private_key, remote_node_public_key, encrypted)
     except InvalidTag:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -154,8 +154,7 @@ async def retrieve_intermediate_result_from_hub(
             f"by node {remote_node_id} for this node.",
         )
 
-    async def _stream_bucket_file():
-        for bytes_ in storage_client.stream_bucket_file(object_id):
-            yield crypto.decrypt_default(private_key, remote_node_public_key, bytes_)
+    async def _stream_file():
+        yield decrypted
 
-    return StreamingResponse(_stream_bucket_file())
+    return StreamingResponse(_stream_file())
