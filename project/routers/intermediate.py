@@ -155,6 +155,12 @@ async def retrieve_intermediate_result_from_hub(
         )
 
     async def _stream_file():
-        yield decrypted
+        try:
+            yield decrypted
+        finally:
+            try:
+                storage_client.delete_bucket_file(bucket_file_id=object_id)
+            except flame_hub.HubAPIError:
+                logger.exception("Failed to delete bucket file")
 
     return StreamingResponse(_stream_file())
