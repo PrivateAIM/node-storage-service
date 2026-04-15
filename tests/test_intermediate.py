@@ -25,7 +25,7 @@ pytestmark = pytest.mark.live
     indirect=True,
 )
 def test_200_encrypt_and_decrypt(
-    test_client, core_client, rng, analysis_id, remote_node_and_private_key, this_node, expected_events
+    test_client, core_client, storage_client, rng, analysis_id, remote_node_and_private_key, this_node, expected_events
 ):
     remote_node, remote_private_key = remote_node_and_private_key
     blob = next_random_bytes(rng)
@@ -55,6 +55,9 @@ def test_200_encrypt_and_decrypt(
         reset_private_key()
 
     assert blob == r.read()
+    assert storage_client.get_bucket_file(bucket_file_id=model.object_id) is None, (
+        "File was not deleted from the Hub after its retrieval."
+    )
 
 
 @pytest.mark.parametrize("expected_events", ["intermediate.put.failure"], indirect=True)
