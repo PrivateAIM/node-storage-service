@@ -172,7 +172,7 @@ def test_400_decrypt_intermediate(
     )
 
     # The file is encrypted for a remote node and therefore cannot be decrypted by the node that encrypted the file
-    # and of course all other nodes except that one remote node. Note that the local private key is not exchanged.
+    # and of course all other nodes except that one remote node. Note that the local private key is not replaced.
     assert r.status_code == status.HTTP_400_BAD_REQUEST
     assert detail_of(r) == (
         f"File with ID {model.object_id} cannot be decrypted under the assumption that the file was encrypted by node "
