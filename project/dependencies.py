@@ -215,7 +215,6 @@ def get_storage_client(
     )
 
 
-@lru_cache
 def get_node_id(
     settings: Annotated[Settings, Depends(get_settings)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
