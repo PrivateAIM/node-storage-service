@@ -220,7 +220,7 @@ def get_node_id(
     settings: Annotated[Settings, Depends(get_settings)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
 ):
-    if settings.hub.auth.flow != "client":
+    if settings.hub.auth.flow != AuthFlow.client:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="It's only possible to retrieve the id of this node if a client authentication flow is configured.",
