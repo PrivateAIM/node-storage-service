@@ -17,6 +17,7 @@ from project.dependencies import (
     get_core_client,
     get_storage_client,
     get_ecdh_private_key,
+    get_node_id,
 )
 from project.event_logging import EventLoggingRoute
 
@@ -65,6 +66,7 @@ async def submit_intermediate_result_to_hub(
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
     private_key: Annotated[ec.EllipticCurvePrivateKey, Depends(get_ecdh_private_key)],
+    node_id: Annotated[uuid.UUID, Depends(get_node_id)],
     remote_node_id: Annotated[str, Form()],
 ):
     """Upload a file as an intermediate result to the FLAME Hub.
@@ -114,6 +116,8 @@ async def submit_intermediate_result_to_hub(
             request.url_for(
                 "intermediate.object.get",
                 object_id=bucket_file.id,
+            ).include_query_params(
+                remote_node_id=node_id,
             )
         ),
     )

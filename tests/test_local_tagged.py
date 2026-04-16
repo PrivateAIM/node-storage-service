@@ -327,11 +327,8 @@ def test_200_upload_local_file(
 
     try:
         r = test_client.get(
-            model.url.path,
+            f"{model.url.path}?{model.url.query}",
             auth=BearerAuth(issue_client_access_token(analysis_id)),
-            params={
-                "remote_node_id": str(this_node.id),
-            },
         )
     finally:
         reset_private_key()

@@ -47,13 +47,13 @@ def test_200_encrypt_and_decrypt(
 
     try:
         r = test_client.get(
-            model.url.path,
+            f"{model.url.path}?{model.url.query}",
             auth=BearerAuth(issue_client_access_token(analysis_id)),
-            params={"remote_node_id": this_node.id},
         )
     finally:
         reset_private_key()
 
+    assert r.status_code == status.HTTP_200_OK, str(r.text)
     assert blob == r.read()
     assert storage_client.get_bucket_file(bucket_file_id=model.object_id) is None, (
         "File was not deleted from the Hub after its retrieval."
@@ -172,7 +172,7 @@ def test_400_decrypt_intermediate(
     )
 
     # The file is encrypted for a remote node and therefore cannot be decrypted by the node that encrypted the file
-    # and of course all other nodes except that one remote node.
+    # and of course all other nodes except that one remote node. Note that the local private key is not exchanged.
     assert r.status_code == status.HTTP_400_BAD_REQUEST
     assert detail_of(r) == (
         f"File with ID {model.object_id} cannot be decrypted under the assumption that the file was encrypted by node "

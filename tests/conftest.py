@@ -19,7 +19,7 @@ from testcontainers.postgres import PostgresContainer
 from minio import Minio
 from node_event_logging import EventLog
 
-from project.dependencies import get_postgres_db, get_local_minio, get_ecdh_private_key
+from project.dependencies import get_postgres_db, get_local_minio, get_ecdh_private_key, get_node_id
 from project.server import get_server_instance
 from tests.common import env
 from tests.common.auth import get_oid_test_jwk, get_test_ecdh_keypair
@@ -128,9 +128,17 @@ def override_ecdh_private_key():
     yield _get_ecdh_private_key
 
 
+@pytest.fixture(scope="package")
+def override_node_id(this_node):
+    def _get_node_id():
+        return this_node.id
+
+    yield _get_node_id
+
+
 # noinspection PyUnresolvedReferences
 @pytest.fixture(scope="package")
-def test_app(override_minio, override_postgres, override_ecdh_private_key):
+def test_app(override_minio, override_postgres, override_ecdh_private_key, override_node_id):
     app = get_server_instance()
 
     if callable(override_postgres):
@@ -140,6 +148,8 @@ def test_app(override_minio, override_postgres, override_ecdh_private_key):
         app.dependency_overrides[get_local_minio] = override_minio
 
     app.dependency_overrides[get_ecdh_private_key] = override_ecdh_private_key
+
+    app.dependency_overrides[get_node_id] = override_node_id
 
     return app
 
@@ -347,7 +357,7 @@ def analysis_id(analysis_id_factory):
     return analysis_id_factory()
 
 
-@pytest.fixture
+@pytest.fixture(scope="package")
 def realm_id(auth_client):
     preferred_realm_name = os.environ.get("PYTEST__PREFERRED_REALM_NAME", "master")
     realm_list = auth_client.find_realms(filter={"name": preferred_realm_name})
@@ -357,7 +367,7 @@ def realm_id(auth_client):
     yield realm_list.pop()
 
 
-@pytest.fixture()
+@pytest.fixture(scope="package")
 def this_node(core_client, realm_id):
     node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
     _, public_key = get_test_ecdh_keypair()
