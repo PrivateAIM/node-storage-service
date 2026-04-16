@@ -29,6 +29,7 @@ from tests.common.helpers import (
     next_random_bytes,
     next_uuid,
     next_ecdh_keypair_bytes,
+    temporarily_change_dependency,
 )
 
 
@@ -128,17 +129,9 @@ def override_ecdh_private_key():
     yield _get_ecdh_private_key
 
 
-@pytest.fixture(scope="package")
-def override_node_id(this_node):
-    def _get_node_id():
-        return this_node.id
-
-    yield _get_node_id
-
-
 # noinspection PyUnresolvedReferences
 @pytest.fixture(scope="package")
-def test_app(override_minio, override_postgres, override_ecdh_private_key, override_node_id):
+def test_app(override_minio, override_postgres, override_ecdh_private_key):
     app = get_server_instance()
 
     if callable(override_postgres):
@@ -148,8 +141,6 @@ def test_app(override_minio, override_postgres, override_ecdh_private_key, overr
         app.dependency_overrides[get_local_minio] = override_minio
 
     app.dependency_overrides[get_ecdh_private_key] = override_ecdh_private_key
-
-    app.dependency_overrides[get_node_id] = override_node_id
 
     return app
 
@@ -368,13 +359,19 @@ def realm_id(auth_client):
 
 
 @pytest.fixture(scope="package")
-def this_node(core_client, realm_id):
+def this_node(test_client, core_client, realm_id):
     node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
     _, public_key = get_test_ecdh_keypair()
     # Also update node reference.
     node = core_client.update_node(
         node, public_key=public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).hex()
     )
+
+    def override_get_node_id():
+        return node.id
+
+    # Change dependency here since live infra is mandatory at this point.
+    temporarily_change_dependency(test_client, get_node_id, override_get_node_id)
     yield node
     core_client.delete_node(node.id)
 
