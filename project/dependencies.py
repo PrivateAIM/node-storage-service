@@ -215,6 +215,28 @@ def get_storage_client(
     )
 
 
+def get_node_id(
+    settings: Annotated[Settings, Depends(get_settings)],
+    core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
+):
+    if settings.hub.auth.flow != AuthFlow.client:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="It's only possible to retrieve the id of this node if a client authentication flow is configured.",
+        )
+
+    client_id = settings.hub.auth.id
+    nodes = core_client.find_nodes(filter={"client_id": client_id})
+
+    if len(nodes) != 1:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Found {len(nodes)} nodes with the client id {client_id}.",
+        )
+
+    return nodes[0].id
+
+
 @lru_cache
 def get_postgres_db(
     settings: Annotated[Settings, Depends(get_settings)],

@@ -19,7 +19,7 @@ from testcontainers.postgres import PostgresContainer
 from minio import Minio
 from node_event_logging import EventLog
 
-from project.dependencies import get_postgres_db, get_local_minio, get_ecdh_private_key
+from project.dependencies import get_postgres_db, get_local_minio, get_ecdh_private_key, get_node_id
 from project.server import get_server_instance
 from tests.common import env
 from tests.common.auth import get_oid_test_jwk, get_test_ecdh_keypair
@@ -29,6 +29,7 @@ from tests.common.helpers import (
     next_random_bytes,
     next_uuid,
     next_ecdh_keypair_bytes,
+    temporarily_change_dependency,
 )
 
 
@@ -347,7 +348,7 @@ def analysis_id(analysis_id_factory):
     return analysis_id_factory()
 
 
-@pytest.fixture
+@pytest.fixture(scope="package")
 def realm_id(auth_client):
     preferred_realm_name = os.environ.get("PYTEST__PREFERRED_REALM_NAME", "master")
     realm_list = auth_client.find_realms(filter={"name": preferred_realm_name})
@@ -357,14 +358,20 @@ def realm_id(auth_client):
     yield realm_list.pop()
 
 
-@pytest.fixture()
-def this_node(core_client, realm_id):
+@pytest.fixture(scope="package")
+def this_node(test_client, core_client, realm_id):
     node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
     _, public_key = get_test_ecdh_keypair()
     # Also update node reference.
     node = core_client.update_node(
         node, public_key=public_key.public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo).hex()
     )
+
+    def override_get_node_id():
+        return node.id
+
+    # Change dependency here since live infra is mandatory at this point.
+    temporarily_change_dependency(test_client, get_node_id, override_get_node_id)
     yield node
     core_client.delete_node(node.id)
 
