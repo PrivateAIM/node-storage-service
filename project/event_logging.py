@@ -221,14 +221,15 @@ class EventLogger(Postgres):
             else:
                 analysis = self.core_client.get_analysis(analysis_id=client_id)
             if analysis is not None:
+                project = self.core_client.get_project(project_id=analysis.project_id)
                 template_kwargs.update(
                     {
                         "analysis_name": analysis.name,
-                        "project_id": str(analysis.project_id),
-                        "project_name": analysis.project.name,
+                        "project_id": str(project.id),
+                        "project_name": project.name,
                     }
                 )
-                attributes["project_id"] = str(analysis.project_id)
+                attributes["project_id"] = str(project.id)
             else:
                 template_kwargs.update(
                     {
