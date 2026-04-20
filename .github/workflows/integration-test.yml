@@ -34,7 +34,7 @@ jobs:
       - name: Copy environment variables
         run: cp .env.example .env.test
       - name: Run tests
-        run: poetry run pytest
+        run: poetry run pytest -vra -m "not live"
         env:
           MINIO__ACCESS_KEY: ${{env.MINIO_ROOT_USER}}
           MINIO__SECRET_KEY: ${{env.MINIO_ROOT_PASSWORD}}
