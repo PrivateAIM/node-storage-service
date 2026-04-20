@@ -1,3 +1,7 @@
+![Code Coverage]()
+
+# FLAME Node Storage Service
+
 The FLAME Node Storage Service is responsible for handling result files for federated analyses within FLAME.
 It uses a local object storage to store intermediate files, as well as to enqueue files for upload to the FLAME Hub.
 
