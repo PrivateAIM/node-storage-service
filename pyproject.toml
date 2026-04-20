@@ -22,6 +22,7 @@ dependencies = [
     "truststore (>=0.10.1,<1)",
     "opendp (>=0.12.1,<0.13.0)",
     "node-event-logging-database @ git+https://github.com/PrivateAIM/node-event-logging-database.git@9b052e2f2c3d02325da91c7f13f5430c0f20fba3",
+    "readme-coverage-badger (>=1.0.1,<2.0.0)",
 ]
 license = "Apache-2.0"
 
@@ -38,6 +39,7 @@ ruff = ">=0.9.0"
 pre-commit = ">=4.0.0"
 testcontainers = {extras = ["postgres"], version = ">=4.9.0"}
 pytest-env = "^1.5.0"
+pytest-cov = "^7.1.0"
 
 [tool.ruff]
 line-length = 120
@@ -53,7 +55,7 @@ env_files = [
 env = [
     "POSTGRES__EVENT_LOGGING=1"
 ]
-addopts = "-m \"not live\""
+addopts = "--cov=project --cov-branch"
 filterwarnings = [
     "ignore:^The @wait_container_is_ready decorator:DeprecationWarning"
 ]
