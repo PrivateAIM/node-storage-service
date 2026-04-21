@@ -19,9 +19,8 @@ from project.dependencies import (
     get_ecdh_private_key,
     get_node_id,
 )
-from project.event_logging import EventLoggingRoute
 
-router = APIRouter(route_class=EventLoggingRoute)
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 

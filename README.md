@@ -60,7 +60,6 @@ The following table shows all available configuration options.
 | POSTGRES__DB                  | Database of Postgres instance for storing tags and result meta data                             |                                |       x        |
 | POSTGRES__MAX_CONNECTIONS     | Maximum number of connections for pooled Postgres instance                                      | 20                             |                |
 | POSTGRES__STALE_TIMEOUT       | Number of seconds to allow connections to be used                                               | 300                            |                |
-| POSTGRES__EVENT_LOGGING       | Flag for en-/disabling event logging                                                            | 1                              |                |
 | POSTGRES__KEEPALIVES_IDLE     | How long a connection needs to be idle before the first TCP keepalive probe is sent             | 60                             |                |
 | POSTGRES__KEEPALIVES_INTERVAL | Time between successive TCP probes after the first one                                          | 30                             |                |
 | POSTGRES__KEEPALIVES_COUNT    | Number of failed TCP probes before declaring a connection dead                                  | 3                              |                |

@@ -13,9 +13,8 @@ from project.dependencies import (
     get_core_client,
     get_storage_client,
 )
-from project.event_logging import EventLoggingRoute
 
-router = APIRouter(route_class=EventLoggingRoute)
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 

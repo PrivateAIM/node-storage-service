@@ -10,7 +10,6 @@ from pydantic import BaseModel
 from starlette import status
 
 from project.crud import Postgres
-from project.event_logging import EventLogger
 from project.routers import final, intermediate, local
 from opendp.mod import enable_features
 
@@ -52,17 +51,6 @@ def load_readme():
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    import os
-    import json
-
-    os.makedirs("logs", exist_ok=True)
-    log_config_file_path = get_project_root() / "config" / "logging.json"
-
-    with open(log_config_file_path) as f:
-        log_config = json.load(f)
-
-    logging.config.dictConfig(log_config)
-
     # Enable floating point features in OpenDP
     enable_features("floating-point")
     # Enable features in OpenDP
@@ -71,11 +59,6 @@ async def lifespan(_: FastAPI):
     # Set up Postgres database to store results.
     postgres = Postgres()
     postgres.setup()
-
-    # Set up the logger for event logging.
-    event_logger = EventLogger()
-    if event_logger.enabled:
-        event_logger.setup()
 
     yield
 

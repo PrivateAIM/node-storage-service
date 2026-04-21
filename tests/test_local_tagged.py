@@ -59,13 +59,14 @@ def test_is_valid_tag(pattern, expected):
     assert is_valid_tag(pattern) == expected
 
 
-@pytest.mark.parametrize(
-    "expected_events",
-    [("local.put.success", "local.tags.get.success", "local.tags.name.get.success")],
-    indirect=True,
-)
 def test_200_create_tagged_upload(
-    test_client, rng, analysis_id, project_id, core_client, minio, postgres, expected_events
+    test_client,
+    rng,
+    analysis_id,
+    project_id,
+    core_client,
+    minio,
+    postgres,
 ):
     # use global random here to generate different tags for each run
     tag = next_random_string(charset=string.ascii_lowercase)
@@ -133,8 +134,7 @@ def test_200_create_tagged_upload(
     assert tagged_result.filename == filename
 
 
-@pytest.mark.parametrize("expected_events", ["local.put.failure"], indirect=True)
-def test_404_submit_tagged(test_client, rng, expected_events):
+def test_404_submit_tagged(test_client, rng):
     rand_uuid = str(uuid.uuid4())
     blob = next_random_bytes(rng)
 
@@ -149,8 +149,7 @@ def test_404_submit_tagged(test_client, rng, expected_events):
     assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
 
 
-@pytest.mark.parametrize("expected_events", ["local.tags.get.failure"], indirect=True)
-def test_404_get_tags(test_client, expected_events):
+def test_404_get_tags(test_client):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.get(
@@ -162,8 +161,7 @@ def test_404_get_tags(test_client, expected_events):
     assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
 
 
-@pytest.mark.parametrize("expected_events", ["local.tags.name.get.failure"], indirect=True)
-def test_404_get_results_by_tag(test_client, expected_events):
+def test_404_get_results_by_tag(test_client):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.get(
@@ -176,8 +174,7 @@ def test_404_get_results_by_tag(test_client, expected_events):
     assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
 
 
-@pytest.mark.parametrize("expected_events", [("local.put.success", "local.delete.success")], indirect=True)
-def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgres, expected_events):
+def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgres):
     project = core_client.create_project(name=next_prefixed_name())
     analysis = core_client.create_analysis(project_id=project.id, name=next_prefixed_name())
 
@@ -214,12 +211,7 @@ def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgre
         assert len(crud.Tag.select().where(crud.Tag.project_id == project.id)) == 0
 
 
-@pytest.mark.parametrize(
-    "expected_events",
-    [("local.tags.post.success", "local.tags.post.success", "local.tags.post.failure")],
-    indirect=True,
-)
-def test_tag_existing_object(test_client, minio_object, project_id, analysis_id, postgres, expected_events):
+def test_tag_existing_object(test_client, minio_object, project_id, analysis_id, postgres):
     object_id = minio_object.object_name.split("/")[-1]
     filename = next_random_string()
     tag_name = next_random_string(charset=string.ascii_lowercase)
@@ -274,11 +266,6 @@ def test_tag_existing_object(test_client, minio_object, project_id, analysis_id,
     )
 
 
-@pytest.mark.parametrize(
-    "expected_events",
-    [("local.put.success", "local.upload.put.success", "intermediate.object.get.success")],
-    indirect=True,
-)
 def test_200_upload_local_file(
     test_client,
     core_client,
@@ -286,7 +273,6 @@ def test_200_upload_local_file(
     analysis_id,
     this_node,
     remote_node_and_private_key,
-    expected_events,
 ):
     blob = next_random_bytes(rng)
     tag_name = next_random_string(charset=string.ascii_lowercase)
