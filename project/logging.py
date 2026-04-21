@@ -14,7 +14,7 @@ class JsonFormatter(logging.Formatter):
                     tz=timezone.utc,
                 )
                 .isoformat(timespec="milliseconds")
-                .replace("+00:00", "Z"),
+                .replace("+00:00", "Z")
             ),
             "level": record.levelname,
             "logger": record.name,
