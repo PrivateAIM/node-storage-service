@@ -1,12 +1,13 @@
 import uuid
 
+from fastapi import FastAPI
 from flame_hub import HubAPIError
 import peewee as pw
 import pytest
 from starlette import status
 
 from project.dependencies import get_storage_client, get_postgres_db
-from project.server import load_pyproject
+from project.server import load_pyproject, get_server_instance
 from tests.common.auth import BearerAuth, issue_client_access_token
 from tests.common.helpers import temporarily_change_dependency
 from tests.common.rest import detail_of
@@ -15,6 +16,13 @@ from tests.common.rest import detail_of
 def test_load_pyproject():
     # should parse correctly
     _ = load_pyproject()
+
+
+def test_get_server_instance():
+    app = get_server_instance()
+
+    assert isinstance(app, FastAPI)
+    assert id(app) == id(get_server_instance())
 
 
 @pytest.mark.live

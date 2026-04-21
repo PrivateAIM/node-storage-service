@@ -39,6 +39,24 @@ def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client,
     assert noisy_value != raw_value, "Noisy value should be different from raw value."
 
 
+def test_400_faulty_value_file(test_client, analysis_id, rng):
+    blob = next_random_bytes(rng)
+    filename = "test_result.txt"
+
+    # Set parameters for DP.
+    form_data = {"epsilon": "1.0", "sensitivity": "1.0"}
+
+    r = test_client.put(
+        "/final/localdp",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        files={"file": (filename, blob, "text/plain")},
+        data=form_data,
+    )
+
+    assert r.status_code == status.HTTP_400_BAD_REQUEST
+    assert detail_of(r) == "Uploaded file must contain a single numerical value."
+
+
 def test_200_submit_to_upload(test_client, rng, core_client, storage_client, analysis_id):
     blob = next_random_bytes(rng)
     r = test_client.put(
