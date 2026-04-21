@@ -2,6 +2,7 @@ import os
 import json
 import logging.config
 import sys
+import pathlib
 
 import uvicorn
 
@@ -22,11 +23,12 @@ def run_server():
     uvicorn.run(app, host="0.0.0.0", port=8000, log_config=log_config)
 
 
-def openapi_spec(filename: str = "openapi.json"):
-    try:
-        filename = sys.argv[1]
-    except IndexError:
-        pass
+def openapi_spec():
+    filename = sys.argv[1]
+
+    if pathlib.Path(filename).suffix != ".json":
+        raise ValueError(f"File {filename} needs to be a json file.")
+
     spec = app.openapi()
     with open(filename, "w") as f:
         json.dump(spec, f)
