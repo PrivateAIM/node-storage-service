@@ -19,7 +19,7 @@ jobs:
       - name: Install dependencies
         run: poetry install
       - name: Create schema file
-        run: poetry run openapi-spec
+        run: poetry run openapi-spec openapi.json
       - name: Install Spectral
         run: npm install -g @stoplight/spectral-cli
       - name: Lint schema file

@@ -2,37 +2,57 @@
   "version": 1,
   "disable_existing_loggers": false,
   "formatters": {
-    "simple": {
-      "format": "%(levelname)s: %(message)s"
+    "file_formatter": {
+      "format": "%(levelname)s - %(module)s:L%(lineno)d - %(asctime)s - %(message)s",
+      "datefmt": "%Y-%m-%d %H:%M:%S"
     },
-    "detailed": {
-      "format": "[%(levelname)s|%(module)s|L%(lineno)d] %(asctime)s: %(message)s",
-      "datefmt": "%Y-%m-%dT%H:%M:%S%z"
+    "console_formatter": {
+      "()": "project.logging.JsonFormatter",
+      "format": "%(asctime)s [%(levelname)s] %(message)s",
+      "datefmt": "%Y-%m-%d %H:%M:%S"
     }
   },
   "handlers": {
-    "stderr": {
-      "class": "logging.StreamHandler",
-      "level": "WARNING",
-      "formatter": "simple",
-      "stream": "ext://sys.stderr"
-    },
-    "file": {
+    "file_handler": {
       "class": "logging.handlers.RotatingFileHandler",
-      "level": "DEBUG",
-      "formatter": "detailed",
-      "filename": "logs/flame-storage-debug.log",
-      "maxBytes": 10485760,
-      "backupCount": 5
+      "filename": "flame-storage-debug.log",
+      "encoding": "utf-8",
+      "mode": "a",
+      "maxBytes": 4194304,
+      "backupCount": 5,
+      "formatter": "file_formatter",
+      "level": "DEBUG"
+    },
+    "console_handler": {
+      "class": "logging.StreamHandler",
+      "stream": "ext://sys.stdout",
+      "formatter": "console_formatter",
+      "level": "INFO"
     }
   },
+  "root": {
+    "level": "INFO",
+    "handlers": ["file_handler", "console_handler"]
+  },
   "loggers": {
-    "root": {
-      "level": "DEBUG",
-      "handlers": [
-        "stderr",
-        "file"
-      ]
+    "fastapi": {
+      "level": "INFO",
+      "propagate": true
+    },
+    "uvicorn": {
+      "level": "INFO",
+      "propagate": true
+    },
+    "uvicorn.error": {
+      "level": "INFO",
+      "propagate": true
+    },
+    "uvicorn.access": {
+      "level": "INFO",
+      "propagate": true
+    },
+    "httpx": {
+      "level": "WARNING"
     }
   }
 }

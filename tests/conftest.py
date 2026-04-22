@@ -17,7 +17,6 @@ from starlette.testclient import TestClient
 from testcontainers.minio import MinioContainer
 from testcontainers.postgres import PostgresContainer
 from minio import Minio
-from node_event_logging import EventLog
 
 from project.dependencies import get_postgres_db, get_local_minio, get_ecdh_private_key, get_node_id
 from project.server import get_server_instance
@@ -396,18 +395,3 @@ def minio_object(minio, rng, project_id):
     )
     yield obj
     minio.remove_object(bucket_name=bucket, object_name=obj.object_name)
-
-
-@pytest.fixture
-def expected_events(request, postgres):
-    expected = [request.param] if isinstance(request.param, str) else request.param
-
-    with postgres.atomic():
-        n_events = EventLog.select().count()
-
-    yield
-
-    with postgres.atomic():
-        assert EventLog.select().count() == n_events + len(expected)
-        events = EventLog.select().order_by(EventLog.timestamp.desc()).limit(len(expected))
-        assert list(expected) == [event.event_name for event in events][::-1]

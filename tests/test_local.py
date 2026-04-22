@@ -32,9 +32,14 @@ def _db_snapshot(postgres):
         return crud.Result.select().count(), crud.Tag.select().count(), crud.TaggedResult.select().count()
 
 
-@pytest.mark.parametrize("expected_events", [("local.put.success", "local.object.get.success")], indirect=True)
 def test_200_submit_receive_from_local(
-    test_client, rng, core_client, project_id, analysis_id, minio, postgres, expected_events
+    test_client,
+    rng,
+    core_client,
+    project_id,
+    analysis_id,
+    minio,
+    postgres,
 ):
     bucket = os.environ.get("MINIO__BUCKET")
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
@@ -64,8 +69,7 @@ def test_200_submit_receive_from_local(
     assert r.read() == blob
 
 
-@pytest.mark.parametrize("expected_events", ["local.object.get.failure"], indirect=True)
-def test_404_unknown_oid(test_client, core_client, analysis_id, expected_events):
+def test_404_unknown_oid(test_client, core_client, analysis_id):
     oid = uuid.uuid4()
     r = test_client.get(
         f"/local/{oid}",
@@ -76,8 +80,7 @@ def test_404_unknown_oid(test_client, core_client, analysis_id, expected_events)
     assert detail_of(r) == f"Object with ID {oid} does not exist"
 
 
-@pytest.mark.parametrize("expected_events", [("local.put.success", "local.object.get.success")], indirect=True)
-def test_200_result_from_another_analysis(test_client, core_client, analysis_id_factory, rng, expected_events):
+def test_200_result_from_another_analysis(test_client, core_client, analysis_id_factory, rng):
     first_analysis_id, second_analysis_id = analysis_id_factory(), analysis_id_factory()
 
     blob = next_random_bytes(rng)
@@ -93,10 +96,7 @@ def test_200_result_from_another_analysis(test_client, core_client, analysis_id_
     assert r.read() == blob
 
 
-@pytest.mark.parametrize("expected_events", [("local.put.success", "local.object.get.failure")], indirect=True)
-def test_404_result_from_another_project(
-    test_client, core_client, rng, project_id_factory, analysis_id_factory, expected_events
-):
+def test_404_result_from_another_project(test_client, core_client, rng, project_id_factory, analysis_id_factory):
     first_analysis_id = analysis_id_factory(project_id_factory())
     second_analysis_id = analysis_id_factory(project_id_factory())
 
@@ -114,8 +114,7 @@ def test_404_result_from_another_project(
     assert detail_of(r) == f"Object with ID {object_id} does not exist"
 
 
-@pytest.mark.parametrize("expected_events", ["local.delete.failure"], indirect=True)
-def test_400_delete_results(test_client, project_id, minio, postgres, expected_events):
+def test_400_delete_results(test_client, project_id, minio, postgres):
     bucket = os.environ.get("MINIO__BUCKET")
 
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
@@ -135,8 +134,7 @@ def test_400_delete_results(test_client, project_id, minio, postgres, expected_e
     assert _db_snapshot(postgres) == before_snapshot
 
 
-@pytest.mark.parametrize("expected_events", ["local.delete.failure"], indirect=True)
-def test_403_delete_results(test_client, project_id, minio, postgres, expected_events):
+def test_403_delete_results(test_client, project_id, minio, postgres):
     bucket = os.environ.get("MINIO__BUCKET")
 
     n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
@@ -159,8 +157,7 @@ def test_403_delete_results(test_client, project_id, minio, postgres, expected_e
     assert _db_snapshot(postgres) == before_snapshot
 
 
-@pytest.mark.parametrize("expected_events", [("local.put.success", "local.delete.success")], indirect=True)
-def test_200_delete_results(test_client, core_client, rng, minio, postgres, expected_events):
+def test_200_delete_results(test_client, core_client, rng, minio, postgres):
     project = core_client.create_project(name=next_prefixed_name())
     analysis = core_client.create_analysis(project_id=project.id, name=next_prefixed_name())
 
@@ -196,11 +193,6 @@ def test_200_delete_results(test_client, core_client, rng, minio, postgres, expe
     assert _db_snapshot(postgres) == before_snapshot
 
 
-@pytest.mark.parametrize(
-    "expected_events",
-    [("local.put.success", "local.upload.put.success", "intermediate.object.get.success")],
-    indirect=True,
-)
 def test_200_upload_local_file(
     test_client,
     core_client,
@@ -208,7 +200,6 @@ def test_200_upload_local_file(
     analysis_id,
     this_node,
     remote_node_and_private_key,
-    expected_events,
 ):
     blob = next_random_bytes(rng)
     r = test_client.put(

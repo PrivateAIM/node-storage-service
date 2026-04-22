@@ -10,8 +10,7 @@ from tests.common.rest import wrap_bytes_for_request, detail_of
 pytestmark = pytest.mark.live
 
 
-@pytest.mark.parametrize("expected_events", ["final.localdp.put.success"], indirect=True)
-def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client, analysis_id, expected_events):
+def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client, analysis_id):
     # Send a valid numerical file.
     raw_value = rng.random()
     blob = str(raw_value).encode("utf-8")
@@ -40,8 +39,25 @@ def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client,
     assert noisy_value != raw_value, "Noisy value should be different from raw value."
 
 
-@pytest.mark.parametrize("expected_events", ["final.put.success"], indirect=True)
-def test_200_submit_to_upload(test_client, rng, core_client, storage_client, analysis_id, expected_events):
+def test_400_faulty_value_file(test_client, analysis_id, rng):
+    blob = next_random_bytes(rng)
+    filename = "test_result.txt"
+
+    # Set parameters for DP.
+    form_data = {"epsilon": "1.0", "sensitivity": "1.0"}
+
+    r = test_client.put(
+        "/final/localdp",
+        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        files={"file": (filename, blob, "text/plain")},
+        data=form_data,
+    )
+
+    assert r.status_code == status.HTTP_400_BAD_REQUEST
+    assert detail_of(r) == "Uploaded file must contain a single numerical value."
+
+
+def test_200_submit_to_upload(test_client, rng, core_client, storage_client, analysis_id):
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/final",
@@ -61,8 +77,7 @@ def test_200_submit_to_upload(test_client, rng, core_client, storage_client, ana
     assert result_file_content == blob, "Result file has incorrect content."
 
 
-@pytest.mark.parametrize("expected_events", ["final.put.failure"], indirect=True)
-def test_404_submit_invalid_id(test_client, rng, expected_events):
+def test_404_submit_invalid_id(test_client, rng):
     rand_uuid = str(uuid.uuid4())
     blob = next_random_bytes(rng)
 

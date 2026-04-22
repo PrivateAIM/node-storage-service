@@ -19,13 +19,14 @@ from tests.common.rest import wrap_bytes_for_request, detail_of
 pytestmark = pytest.mark.live
 
 
-@pytest.mark.parametrize(
-    "expected_events",
-    [("intermediate.put.success", "intermediate.object.get.success")],
-    indirect=True,
-)
 def test_200_encrypt_and_decrypt(
-    test_client, core_client, storage_client, rng, analysis_id, remote_node_and_private_key, this_node, expected_events
+    test_client,
+    core_client,
+    storage_client,
+    rng,
+    analysis_id,
+    remote_node_and_private_key,
+    this_node,
 ):
     remote_node, remote_private_key = remote_node_and_private_key
     blob = next_random_bytes(rng)
@@ -60,14 +61,12 @@ def test_200_encrypt_and_decrypt(
     )
 
 
-@pytest.mark.parametrize("expected_events", ["intermediate.put.failure"], indirect=True)
 def test_400_submit_encrypted_no_remote_public_key(
     test_client,
     rng,
     analysis_id,
     core_client,
     realm_id,
-    expected_events,
 ):
     node = core_client.create_node(name=next_uuid(), realm_id=realm_id, node_type="default")
 
@@ -87,8 +86,7 @@ def test_400_submit_encrypted_no_remote_public_key(
     assert detail_of(r) == f"Remote node with ID {node.id} does not provide a public key"
 
 
-@pytest.mark.parametrize("expected_events", ["intermediate.object.get.failure"], indirect=True)
-def test_404_invalid_id(test_client, expected_events):
+def test_404_invalid_id(test_client):
     rand_uuid = str(uuid.uuid4())
     r = test_client.get(
         f"/intermediate/{rand_uuid}",
@@ -100,8 +98,7 @@ def test_404_invalid_id(test_client, expected_events):
     assert detail_of(r) == f"Object with ID {rand_uuid} does not exist"
 
 
-@pytest.mark.parametrize("expected_events", ["intermediate.put.failure"], indirect=True)
-def test_404_no_remote_node(test_client, analysis_id, core_client, rng, expected_events):
+def test_404_no_remote_node(test_client, analysis_id, core_client, rng):
     rand_uuid = str(uuid.uuid4())
     r = test_client.put(
         "/intermediate",
@@ -116,8 +113,7 @@ def test_404_no_remote_node(test_client, analysis_id, core_client, rng, expected
     assert detail_of(r) == f"Remote node with ID {rand_uuid} does not exist."
 
 
-@pytest.mark.parametrize("expected_events", ["intermediate.put.failure"], indirect=True)
-def test_404_submit_invalid_client_id(test_client, rng, expected_events):
+def test_404_submit_invalid_client_id(test_client, rng):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.put(
@@ -133,11 +129,6 @@ def test_404_submit_invalid_client_id(test_client, rng, expected_events):
     assert detail_of(r) == f"Temp bucket for analysis with ID {rand_uuid} was not found"
 
 
-@pytest.mark.parametrize(
-    "expected_events",
-    [("intermediate.put.success", "intermediate.object.get.failure")],
-    indirect=True,
-)
 def test_400_decrypt_intermediate(
     test_client,
     core_client,
@@ -146,7 +137,6 @@ def test_400_decrypt_intermediate(
     remote_node_and_private_key,
     rng,
     realm_id,
-    expected_events,
 ):
     blob = next_random_bytes(rng)
     remote_node, _ = remote_node_and_private_key

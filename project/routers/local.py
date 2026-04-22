@@ -29,9 +29,8 @@ from project.dependencies import (
     get_node_id,
 )
 from project.routers.intermediate import IntermediateUploadResponse, submit_intermediate_result_to_hub
-from project.event_logging import EventLoggingRoute
 
-router = APIRouter(route_class=EventLoggingRoute)
+router = APIRouter()
 logger = logging.getLogger(__name__)
 
 _TAG_PATTERN = re.compile(r"[a-z0-9]{1,2}|[a-z0-9][a-z0-9-]{,30}[a-z0-9]")
