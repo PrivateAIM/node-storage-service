@@ -28,6 +28,7 @@ def test_openapi_spec_wrong_file(monkeypatch):
     assert str(e.value) == f"File {filename} needs to be a json file."
 
 
+@pytest.mark.live
 def test_run_server(monkeypatch):
     host, port = "127.0.0.1", 8001
     server = config_server(host=host, port=port)
@@ -38,17 +39,19 @@ def test_run_server(monkeypatch):
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
-    def _wait_for_server_to_start():
-        return server.started
+    try:
 
-    assert eventually(_wait_for_server_to_start)
+        def _wait_for_server_to_start():
+            return server.started
 
-    r = httpx.get(f"http://{host}:{port}/healthz")
+        assert eventually(_wait_for_server_to_start)
 
-    assert r.status_code == 200
-    assert r.json() == {"status": "ok"}
+        r = httpx.get(f"http://{host}:{port}/healthz")
 
-    server.should_exit = True
-    thread.join(timeout=5)
+        assert r.status_code == 200
+        assert r.json() == {"status": "ok"}
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
 
     assert not thread.is_alive()
