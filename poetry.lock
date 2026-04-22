@@ -942,14 +942,14 @@ files = [
 
 [[package]]
 name = "flame-hub-client"
-version = "0.2.14"
+version = "0.2.15"
 description = "HTTP client for interacting with FLAME Hub services."
 optional = false
 python-versions = "<4,>=3.10"
 groups = ["main"]
 files = [
-    {file = "flame_hub_client-0.2.14-py3-none-any.whl", hash = "sha256:b89232f687fec95989bc73e6fc85e02aafb292039d9e8346cf23b562d48f6909"},
-    {file = "flame_hub_client-0.2.14.tar.gz", hash = "sha256:2141cb713a3db2c82a1d3e564c5608c3e7e0aa08ce1714d32d5f97844e1a5610"},
+    {file = "flame_hub_client-0.2.15-py3-none-any.whl", hash = "sha256:a31f04dd0e55cbdf0f12984613b3834da0cf294fa0e6ae5988a1335133e88734"},
+    {file = "flame_hub_client-0.2.15.tar.gz", hash = "sha256:dd296472c05a92bf546e6ec2b9c68a68bc00848607539e77ba12dc756a912a7c"},
 ]
 
 [package.dependencies]
@@ -2980,4 +2980,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "468a8a119b45fb4c18f88ffbe8fa013d5180dfbe7dde48596b416d6a9b46251e"
+content-hash = "a33047ef71914734840af31e83f5b587a4005fed28f6ca4559c60dc9af4f3cc5"
