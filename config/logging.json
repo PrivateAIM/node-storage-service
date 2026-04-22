@@ -15,7 +15,7 @@
   "handlers": {
     "file_handler": {
       "class": "logging.handlers.RotatingFileHandler",
-      "filename": "logs/flame-storage-debug.log",
+      "filename": "flame-storage-debug.log",
       "encoding": "utf-8",
       "mode": "a",
       "maxBytes": 4194304,

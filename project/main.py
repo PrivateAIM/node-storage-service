@@ -11,11 +11,14 @@ app = get_server_instance()
 
 
 def run_server():
-    os.makedirs("logs", exist_ok=True)
+    os.makedirs(get_project_root() / "logs", exist_ok=True)
     log_config_file_path = get_project_root() / "config" / "logging.json"
 
     with open(log_config_file_path) as f:
         log_config = json.load(f)
+
+    filename = log_config["handlers"]["file_handler"]["filename"]
+    log_config["handlers"]["file_handler"]["filename"] = get_project_root() / "logs" / filename
 
     uvicorn.run(app, host="0.0.0.0", port=8000, log_config=log_config)
 
