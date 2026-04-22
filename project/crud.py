@@ -54,7 +54,7 @@ class Postgres:
         return get_postgres_db(settings=get_settings())
 
     def test_connection(self):
-        """Tests connection and binding of tables needed for event logging."""
+        """Tests connection and binding of tables."""
         with self.db:
             pass
 
