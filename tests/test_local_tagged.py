@@ -149,6 +149,24 @@ def test_404_submit_tagged(test_client, rng):
     assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
 
 
+def test_400_invalid_tag(test_client, rng, analysis_id):
+    # Create a random invalid tag.
+    tag = next_random_string(charset=string.ascii_lowercase) + "-"
+    filename = str(uuid.uuid4())
+    blob = next_random_bytes(rng)
+    auth = BearerAuth(issue_client_access_token(analysis_id))
+
+    r = test_client.put(
+        "/local",
+        auth=auth,
+        files=wrap_bytes_for_request(blob, file_name=filename),
+        data={"tag": tag},
+    )
+
+    assert r.status_code == status.HTTP_400_BAD_REQUEST
+    assert detail_of(r) == f"Invalid tag `{tag}`"
+
+
 def test_404_get_tags(test_client):
     rand_uuid = str(uuid.uuid4())
 

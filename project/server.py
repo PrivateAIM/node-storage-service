@@ -62,7 +62,7 @@ async def lifespan(_: FastAPI):
 
     yield
 
-    # Close all connections to the database. Note that it is not necessary to call event_logger.teardown.
+    # Close all connections to the database.
     postgres.teardown()
 
 

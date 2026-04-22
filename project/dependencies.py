@@ -8,7 +8,7 @@ import flame_hub.auth
 import httpx
 from playhouse.pool import PooledPostgresqlDatabase
 import truststore
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from httpx import HTTPError
 from jwcrypto import jwk, jwt, common
@@ -74,7 +74,6 @@ def get_local_minio(
 
 
 def get_client_id(
-    request: Request,
     settings: Annotated[Settings, Depends(get_settings)],
     jwks: Annotated[jwk.JWKSet, Depends(get_auth_jwks)],
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
@@ -110,7 +109,6 @@ def get_client_id(
 
         jwt_data = json.loads(token.claims)
         client_id = jwt_data[settings.oidc.client_id_claim_name]
-        request.state.client_id = client_id  # Safe client_id in state to be able to retrieve it for event logging.
         return client_id
     except (common.JWException, ValueError):
         logger.exception("Failed to deserialize JWT")
