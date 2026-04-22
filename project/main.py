@@ -1,6 +1,5 @@
 import os
 import json
-import logging.config
 import sys
 import pathlib
 
@@ -17,8 +16,6 @@ def run_server():
 
     with open(log_config_file_path) as f:
         log_config = json.load(f)
-
-    logging.config.dictConfig(log_config)
 
     uvicorn.run(app, host="0.0.0.0", port=8000, log_config=log_config)
 
