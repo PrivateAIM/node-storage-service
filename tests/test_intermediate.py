@@ -195,7 +195,7 @@ def test_404_analysis_bucket(test_client, rng, analysis_id):
 def test_502_no_single_file(test_client, rng, analysis_id, remote_node_and_private_key):
     reset_client = temporarily_change_dependency(test_client, get_storage_client, lambda: MockClient())
     blob = next_random_bytes(rng)
-    remote_node, remote_private_key = remote_node_and_private_key
+    remote_node, _ = remote_node_and_private_key
 
     try:
         r = test_client.put(
