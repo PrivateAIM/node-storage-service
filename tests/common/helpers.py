@@ -108,3 +108,15 @@ def temporarily_change_dependency(test_client: TestClient, dependency: Callable,
             test_client.app.dependency_overrides[dependency] = old_dependency
 
     return _reset
+
+
+class MockClient:
+    """Mock methods from CoreClient and StorageClient to provoke certain errors."""
+
+    @staticmethod
+    def upload_to_bucket(*args, **kwargs):
+        return []
+
+    @staticmethod
+    def find_analysis_buckets(*args, **kwargs):
+        return []

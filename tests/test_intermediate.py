@@ -3,7 +3,7 @@ import uuid
 import pytest
 from starlette import status
 
-from project.dependencies import get_ecdh_private_key
+from project.dependencies import get_ecdh_private_key, get_core_client, get_storage_client
 from project.routers.intermediate import IntermediateUploadResponse
 from tests.common.auth import (
     BearerAuth,
@@ -13,6 +13,8 @@ from tests.common.helpers import (
     next_random_bytes,
     next_uuid,
     temporarily_change_dependency,
+    MockClient,
+    next_random_string,
 )
 from tests.common.rest import wrap_bytes_for_request, detail_of
 
@@ -168,3 +170,47 @@ def test_400_decrypt_intermediate(
         f"File with ID {model.object_id} cannot be decrypted under the assumption that the file was encrypted by node "
         f"{this_node.id} for this node."
     )
+
+
+def test_404_analysis_bucket(test_client, rng, analysis_id):
+    reset_client = temporarily_change_dependency(test_client, get_core_client, lambda: MockClient())
+    blob = next_random_bytes(rng)
+
+    try:
+        r = test_client.put(
+            "/intermediate",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            files=wrap_bytes_for_request(blob),
+            data={
+                "remote_node_id": next_random_string(),
+            },
+        )
+
+        assert r.status_code == status.HTTP_404_NOT_FOUND
+        assert detail_of(r) == f"Temp bucket for analysis with ID {analysis_id} was not found"
+    finally:
+        reset_client()
+
+
+def test_502_no_single_file(test_client, rng, analysis_id, remote_node_and_private_key):
+    reset_client = temporarily_change_dependency(test_client, get_storage_client, lambda: MockClient())
+    blob = next_random_bytes(rng)
+    remote_node, remote_private_key = remote_node_and_private_key
+
+    try:
+        r = test_client.put(
+            "/intermediate",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            files=wrap_bytes_for_request(blob),
+            data={
+                "remote_node_id": str(remote_node.id),
+            },
+        )
+
+        assert r.status_code == status.HTTP_502_BAD_GATEWAY
+        assert (
+            detail_of(r) == f"Expected single uploaded file to be returned by storage service, got "
+            f"{len(MockClient.upload_to_bucket())}"
+        )
+    finally:
+        reset_client()

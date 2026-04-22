@@ -3,8 +3,14 @@ import uuid
 import pytest
 from starlette import status
 
+from project.dependencies import get_core_client, get_storage_client
 from tests.common.auth import issue_client_access_token, BearerAuth
-from tests.common.helpers import next_random_bytes, wait_for_analysis_bucket_file
+from tests.common.helpers import (
+    next_random_bytes,
+    wait_for_analysis_bucket_file,
+    temporarily_change_dependency,
+    MockClient,
+)
 from tests.common.rest import wrap_bytes_for_request, detail_of
 
 pytestmark = pytest.mark.live
@@ -57,6 +63,59 @@ def test_400_faulty_value_file(test_client, analysis_id, rng):
     assert detail_of(r) == "Uploaded file must contain a single numerical value."
 
 
+def test_404_analysis_bucket_with_local_dp(test_client, rng, analysis_id):
+    reset_client = temporarily_change_dependency(test_client, get_core_client, lambda: MockClient())
+
+    # Send a valid numerical file.
+    raw_value = rng.random()
+    blob = str(raw_value).encode("utf-8")
+    filename = "test_result.txt"
+
+    # Set parameters for DP.
+    form_data = {"epsilon": "1.0", "sensitivity": "1.0"}
+
+    try:
+        r = test_client.put(
+            "/final/localdp",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            files={"file": (filename, blob, "text/plain")},
+            data=form_data,
+        )
+
+        assert r.status_code == status.HTTP_404_NOT_FOUND
+        assert detail_of(r) == f"Result bucket for analysis with ID {analysis_id} was not found"
+    finally:
+        reset_client()
+
+
+def test_502_no_single_result_file_with_local_dp(test_client, rng, analysis_id):
+    reset_client = temporarily_change_dependency(test_client, get_storage_client, lambda: MockClient())
+
+    # Send a valid numerical file.
+    raw_value = rng.random()
+    blob = str(raw_value).encode("utf-8")
+    filename = "test_result.txt"
+
+    # Set parameters for DP.
+    form_data = {"epsilon": "1.0", "sensitivity": "1.0"}
+
+    try:
+        r = test_client.put(
+            "/final/localdp",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            files={"file": (filename, blob, "text/plain")},
+            data=form_data,
+        )
+
+        assert r.status_code == status.HTTP_502_BAD_GATEWAY
+        assert (
+            detail_of(r) == f"Expected single uploaded file to be returned by storage service, got "
+            f"{len(MockClient().upload_to_bucket())}"
+        )
+    finally:
+        reset_client()
+
+
 def test_200_submit_to_upload(test_client, rng, core_client, storage_client, analysis_id):
     blob = next_random_bytes(rng)
     r = test_client.put(
@@ -89,3 +148,40 @@ def test_404_submit_invalid_id(test_client, rng):
 
     assert r.status_code == status.HTTP_404_NOT_FOUND
     assert detail_of(r) == f"Result bucket for analysis with ID {rand_uuid} was not found"
+
+
+def test_404_analysis_bucket(test_client, rng, analysis_id):
+    reset_client = temporarily_change_dependency(test_client, get_core_client, lambda: MockClient())
+    blob = next_random_bytes(rng)
+
+    try:
+        r = test_client.put(
+            "/final",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            files=wrap_bytes_for_request(blob),
+        )
+
+        assert r.status_code == status.HTTP_404_NOT_FOUND
+        assert detail_of(r) == f"Result bucket for analysis with ID {analysis_id} was not found"
+    finally:
+        reset_client()
+
+
+def test_502_no_single_result_file(test_client, rng, analysis_id):
+    reset_client = temporarily_change_dependency(test_client, get_storage_client, lambda: MockClient())
+    blob = next_random_bytes(rng)
+
+    try:
+        r = test_client.put(
+            "/final",
+            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            files=wrap_bytes_for_request(blob),
+        )
+
+        assert r.status_code == status.HTTP_502_BAD_GATEWAY
+        assert (
+            detail_of(r) == f"Expected single uploaded file to be returned by storage service, got "
+            f"{len(MockClient().upload_to_bucket())}"
+        )
+    finally:
+        reset_client()
