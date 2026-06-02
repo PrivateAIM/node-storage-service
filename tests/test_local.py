@@ -1,5 +1,6 @@
-import uuid
 import os
+import random
+import uuid
 
 from starlette import status
 import pytest
@@ -193,15 +194,15 @@ def test_200_delete_results(test_client, core_client, rng, minio, postgres):
     assert _db_snapshot(postgres) == before_snapshot
 
 
+@pytest.mark.parametrize("blob", [random.Random().randbytes(16), random.Random().randbytes(128)])
 def test_200_upload_local_file(
     test_client,
     core_client,
-    rng,
+    blob,
     analysis_id,
     this_node,
     remote_node_and_private_key,
 ):
-    blob = next_random_bytes(rng)
     r = test_client.put(
         "/local",
         auth=BearerAuth(issue_client_access_token(analysis_id)),

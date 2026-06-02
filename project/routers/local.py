@@ -1,4 +1,3 @@
-import io
 import logging
 import re
 from urllib3.response import HTTPResponse
@@ -402,7 +401,7 @@ async def upload_local_file(
             filename = result.get().filename
 
     file = UploadFile(
-        file=io.BytesIO(response.read()),
+        file=response,
         filename=filename,
         headers=response.headers,
     )
