@@ -1,4 +1,4 @@
-![Code Coverage](https://img.shields.io/badge/Coverage-92%25-green.svg)
+![Code Coverage](https://img.shields.io/badge/Coverage-91%25-green.svg)
 
 # FLAME Node Storage Service
 
