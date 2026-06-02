@@ -51,6 +51,9 @@ env_files = [
     ".env",
     ".env.test"
 ]
+env = [
+    "CHUNK_SIZE=64"
+]
 addopts = "--cov=project --cov-branch"
 filterwarnings = [
     "ignore:^The @wait_container_is_ready decorator:DeprecationWarning"

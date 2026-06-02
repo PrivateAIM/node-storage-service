@@ -1,3 +1,4 @@
+import random
 import uuid
 
 import pytest
@@ -21,17 +22,17 @@ from tests.common.rest import wrap_bytes_for_request, detail_of
 pytestmark = pytest.mark.live
 
 
+@pytest.mark.parametrize("blob", [random.Random().randbytes(16), random.Random().randbytes(128)])
 def test_200_encrypt_and_decrypt(
     test_client,
     core_client,
     storage_client,
-    rng,
     analysis_id,
     remote_node_and_private_key,
     this_node,
+    blob,
 ):
     remote_node, remote_private_key = remote_node_and_private_key
-    blob = next_random_bytes(rng)
     r = test_client.put(
         "/intermediate",
         auth=BearerAuth(issue_client_access_token(analysis_id)),
@@ -167,8 +168,7 @@ def test_400_decrypt_intermediate(
     # and of course all other nodes except that one remote node. Note that the local private key is not replaced.
     assert r.status_code == status.HTTP_400_BAD_REQUEST
     assert detail_of(r) == (
-        f"File with ID {model.object_id} cannot be decrypted under the assumption that the file was encrypted by node "
-        f"{this_node.id} for this node."
+        f"Failed to decrypt file with ID {model.object_id} which was encrypted by node {this_node.id}."
     )
 
 

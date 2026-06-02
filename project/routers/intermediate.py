@@ -12,12 +12,14 @@ from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
 from project import crypto
+from project.config import Settings
 from project.dependencies import (
     get_client_id,
     get_core_client,
     get_storage_client,
     get_ecdh_private_key,
     get_node_id,
+    get_settings,
 )
 
 router = APIRouter()
@@ -82,20 +84,18 @@ async def submit_intermediate_result_to_hub(
 
     analysis_bucket = analysis_bucket_lst.pop()
 
-    # TODO this should be chunked for large files, will be addressed in a later version
-    result_file = file.file.read()
-
     # Get the public key of the remote node via the Hub.
     remote_public_key = get_remote_node_public_key(core_client, remote_node_id)
-
-    # Encrypt the given file with the public key of the remote node and the private key of this node.
-    result_file = crypto.encrypt_default(private_key, remote_public_key, result_file)
 
     bucket_file_lst = storage_client.upload_to_bucket(
         analysis_bucket.bucket_id,
         {
             "file_name": file.filename,
-            "content": result_file,
+            "content": crypto.AESGCMEncryptingStream(
+                file=file.file,
+                private_key=private_key,
+                remote_public_key=remote_public_key,
+            ),
             "content_type": file.content_type or "application/octet-stream",
         },
     )
@@ -137,6 +137,7 @@ async def retrieve_intermediate_result_from_hub(
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
     private_key: Annotated[ec.EllipticCurvePrivateKey, Depends(get_ecdh_private_key)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ):
     """Get an intermediate result as file from the FLAME Hub."""
     if storage_client.get_bucket_file(object_id) is None:
@@ -145,21 +146,24 @@ async def retrieve_intermediate_result_from_hub(
             detail=f"Object with ID {object_id} does not exist",
         )
 
-    # TODO: chunk this
-    encrypted = b"".join(storage_client.stream_bucket_file(object_id))
+    # Test decryption first to raise a proper error.
+    encrypted_chunk = next(storage_client.stream_bucket_file(object_id, chunk_size=settings.chunk_size))
     remote_node_public_key = get_remote_node_public_key(core_client, remote_node_id)
     try:
-        decrypted = crypto.decrypt_default(private_key, remote_node_public_key, encrypted)
+        crypto.decrypt_default(private_key, remote_node_public_key, encrypted_chunk)
     except InvalidTag:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File with ID {object_id} cannot be decrypted under the assumption that the file was encrypted "
-            f"by node {remote_node_id} for this node.",
+            detail=f"Failed to decrypt file with ID {object_id} which was encrypted by node {remote_node_id}.",
         )
 
     async def _stream_file():
         try:
-            yield decrypted
+            for chunk in storage_client.stream_bucket_file(object_id, chunk_size=settings.chunk_size):
+                yield crypto.decrypt_default(private_key, remote_node_public_key, chunk)
+        except InvalidTag:
+            logger.exception(f"Failed to decrypt file with ID {object_id} while streaming.")
+            raise
         finally:
             try:
                 storage_client.delete_bucket_file(bucket_file_id=object_id)

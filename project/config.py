@@ -95,6 +95,7 @@ class Settings(BaseSettings):
     proxy: Annotated[ProxyConfig, Field(default_factory=ProxyConfig)]
     extra_ca_certs: Path | None = None
     hub_adapter_client_id: str = "hub-adapter"
+    chunk_size: int = 1024 * 1024  # ~1MB
 
     model_config = SettingsConfigDict(
         frozen=True,
