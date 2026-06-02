@@ -163,6 +163,7 @@ async def retrieve_intermediate_result_from_hub(
                 yield crypto.decrypt_default(private_key, remote_node_public_key, chunk)
         except InvalidTag:
             logger.exception(f"Failed to decrypt file with ID {object_id} while streaming.")
+            raise
         finally:
             try:
                 storage_client.delete_bucket_file(bucket_file_id=object_id)
