@@ -1,13 +1,19 @@
+from functools import cached_property
+import io
 import os
 from pathlib import Path
+import typing as t
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import aead
 
+from project.config import Settings
+
 BITS_PER_BYTE = 8
 DEFAULT_IV_BIT_SIZE = 96
 DEFAULT_SHARED_SECRET_BIT_SIZE = 256
+AESGCM_APPENDED_TAG_BIT_SIZE = 128
 
 EllipticCurveKeyPair = tuple[ec.EllipticCurvePrivateKey, ec.EllipticCurvePublicKey]
 
@@ -104,3 +110,45 @@ def decrypt_default(
     iv, data = split_iv_from_data(data)
 
     return decrypt_aesgcm(shared_secret, iv, data)
+
+
+class AESGCMEncryptingStream(io.RawIOBase):
+    def __init__(
+        self,
+        file: t.BinaryIO,
+        private_key: ec.EllipticCurvePrivateKey,
+        remote_public_key: ec.EllipticCurvePublicKey,
+    ):
+        self.file = file
+        self.private_key = private_key
+        self.remote_public_key = remote_public_key
+        self._buffer = b""
+
+    @cached_property
+    def chunk_size(self) -> int:
+        # Bytes are pre- and appended to a chunk while encrypting. To ensure the configured chunk size, the amount
+        # of additional bytes is subtracted here. This depends heavily on the encryption algorithm.
+        additional_bytes = (DEFAULT_IV_BIT_SIZE + AESGCM_APPENDED_TAG_BIT_SIZE) // BITS_PER_BYTE
+        chunk_size = Settings().chunk_size - additional_bytes
+        if chunk_size <= 0:
+            raise ValueError(
+                f"The chunk size needs to be greater than {additional_bytes}, got {Settings().chunk_size}."
+            )
+        return chunk_size
+
+    def readable(self) -> bool:
+        return True
+
+    def read(self, size: int = -1) -> bytes:
+        while size < 0 or len(self._buffer) < size:
+            chunk = self.file.read(self.chunk_size)
+            if not chunk:
+                break
+            self._buffer += encrypt_default(self.private_key, self.remote_public_key, chunk)
+
+        if size < 0:
+            data, self._buffer = self._buffer, b""
+        else:
+            data, self._buffer = self._buffer[:size], self._buffer[size:]
+
+        return data
