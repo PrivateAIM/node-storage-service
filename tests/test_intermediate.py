@@ -58,7 +58,7 @@ def test_200_encrypt_and_decrypt(
         reset_private_key()
 
     assert r.status_code == status.HTTP_200_OK, str(r.text)
-    assert blob == r.read(), "Test"
+    assert blob == r.read()
     assert storage_client.get_bucket_file(bucket_file_id=model.object_id) is None, (
         "File was not deleted from the Hub after its retrieval."
     )
