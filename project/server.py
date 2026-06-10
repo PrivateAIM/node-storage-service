@@ -18,7 +18,7 @@ _app: FastAPI | None = None
 
 class Author(BaseModel):
     name: str
-    email: str
+    email: str | None = None
 
 
 class Project(BaseModel):
