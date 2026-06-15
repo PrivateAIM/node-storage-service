@@ -1,6 +1,7 @@
 name: Create and publish Docker image
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [ "closed" ]
     branches:
