@@ -208,7 +208,11 @@ def get_storage_client(
 ):
     return flame_hub.StorageClient(
         client=httpx.Client(
-            base_url=str(settings.hub.storage_base_url), auth=auth_flow, verify=ssl_context, mounts=proxy_mounts
+            base_url=str(settings.hub.storage_base_url),
+            auth=auth_flow,
+            verify=ssl_context,
+            mounts=proxy_mounts,
+            timeout=90,
         )
     )
 
