@@ -98,10 +98,8 @@ This allows all tests to generate valid JWTs as well as the service to validate 
 The keypair is for development purposes only and should not be used in a productive setting.
 
 Some tests need to be run against live infrastructure.
-Since a proper test instance is not available yet, these tests are hidden behind a flag and are not explicitly run in
-CI.
-To run these tests, append `-m live` to the command above.
-To run **all** tests, append `-m "live or not live"`.
+To exclude these tests, append `-m "not live` to the command above.
+Similarly, appending `-m live` will only run tests that need live infrastructure.
 
 The tests expect that client **and** password credentials are provided in order to test both authentication flows.
 Set `HUB__AUTH__FLOW` to `client`, but make sure to not only set `HUB__AUTH__ID` and `HUB__AUTH__SECRET`, but also
