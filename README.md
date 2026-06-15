@@ -98,7 +98,7 @@ This allows all tests to generate valid JWTs as well as the service to validate 
 The keypair is for development purposes only and should not be used in a productive setting.
 
 Some tests need to be run against live infrastructure.
-To exclude these tests, append `-m "not live` to the command above.
+To exclude these tests, append `-m "not live"` to the command above.
 Similarly, appending `-m live` will only run tests that need live infrastructure.
 
 The tests expect that client **and** password credentials are provided in order to test both authentication flows.
