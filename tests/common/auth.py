@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-import httpx
+import httpx2
 from httpx import Request
 from jwcrypto import jwk, jwt
 
@@ -81,7 +81,7 @@ def issue_client_access_token(
     )
 
 
-class BearerAuth(httpx.Auth):
+class BearerAuth(httpx2.Auth):
     def __init__(self, token: str):
         self.__token = token
 
