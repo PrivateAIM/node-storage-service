@@ -247,7 +247,11 @@ def project_id_factory(core_client, master_image):
 
     def _factory():
         project_name = next_prefixed_name()
-        project = core_client.create_project(project_name, master_image)
+        project = core_client.create_project(
+            name=project_name,
+            master_image_id=master_image,
+            display_name=next_prefixed_name(),
+        )
 
         def _project_exists():
             return core_client.get_project(project.id) is not None
