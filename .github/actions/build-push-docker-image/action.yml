@@ -29,7 +29,6 @@ runs:
           type=sha
           type=raw,value={{date '[dev-]YYYYMMDD[T]HHmmss[Z]' tz='UTC'}}
           type=raw,value=${{ inputs.extra_tag }},enable=${{ inputs.extra_tag != '' }}
-          - name: Build and push Docker image
     - name: Build and push Docker image
       uses: docker/build-push-action@v7
       with:
