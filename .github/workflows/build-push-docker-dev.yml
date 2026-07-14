@@ -18,6 +18,8 @@ jobs:
       contents: read
       packages: write
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
       - name: Create and publish Docker image from dev branch
         uses: ./.github/actions/build-push-docker-image
         with:
