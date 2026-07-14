@@ -19,22 +19,36 @@ services:
       - "POSTGRES_USER=${POSTGRES__USER:-flame}"
       - "POSTGRES_PASSWORD=${POSTGRES__PASSWORD:-s3cr3t_p4ssw0rd}"
       - "POSTGRES_DB=${POSTGRES__DB:-flame}"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES__USER:-flame} -d $${POSTGRES__DB:-flame}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.1.0
     environment:
       - "KC_BOOTSTRAP_ADMIN_USERNAME=admin"
       - "KC_BOOTSTRAP_ADMIN_PASSWORD=s3cr3t_p4ssw0rd"
+      - "KC_HEALTH_ENABLED=true"
     command: ["start-dev", "--import-realm"]
     volumes:
       - ./docker/keycloak/import:/opt/keycloak/data/import
+    healthcheck:
+      test: [ "CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | grep '200 OK'" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   node-storage-service:
     build: .
     depends_on:
-      - minio
-      - postgres
-      - keycloak
+      minio:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
     environment:
       - "HUB__CORE_BASE_URL=https://core.privateaim.dev"
       - "HUB__STORAGE_BASE_URL=https://storage.privateaim.dev"
@@ -59,3 +73,9 @@ services:
       - ./tests/assets/alice.pfx:/app/ecdh.pfx
     ports:
       - "8080:8080"
+    healthcheck:
+      test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')\"" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
