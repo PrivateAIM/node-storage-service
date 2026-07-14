@@ -1,0 +1,38 @@
+name: Build and push Docker image
+
+inputs:
+  extra_tag:
+    default: ""
+    description: "An extra raw tag to apply to the image (e.g. canary, edge)"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+    - name: Log in to GHCR
+      uses: docker/login-action@v4
+      with:
+        registry: "ghcr.io"
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Extract metadata for Docker
+      id: meta
+      uses: docker/metadata-action@v6
+      with:
+        images: ghcr.io/${{ github.repository }}
+        # First tag is only set if the input is a valid SemVer.
+        tags: |
+          type=semver,pattern={{version}}
+          type=sha
+          type=raw,value={{date '[dev-]YYYYMMDD[T]HHmmss[Z]' tz='UTC'}}
+          type=raw,value=${{ inputs.extra_tag }},enable=${{ inputs.extra_tag != '' }}
+          - name: Build and push Docker image
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v7
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
