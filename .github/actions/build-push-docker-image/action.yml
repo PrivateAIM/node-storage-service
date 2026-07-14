@@ -12,6 +12,8 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
     - name: Log in to GHCR
       uses: docker/login-action@v4
       with:
