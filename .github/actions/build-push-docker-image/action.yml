@@ -1,6 +1,9 @@
 name: Build and push Docker image
 
 inputs:
+  github_token:
+    description: "Token used to authenticate to the registry"
+    required: true
   extra_tag:
     default: ""
     description: "An extra raw tag to apply to the image (e.g. canary, edge)"
@@ -16,7 +19,7 @@ runs:
       with:
         registry: "ghcr.io"
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        password: ${{ inputs.github_token }}
     - name: Extract metadata for Docker
       id: meta
       uses: docker/metadata-action@v6
@@ -28,7 +31,6 @@ runs:
           type=sha
           type=raw,value={{date '[dev-]YYYYMMDD[T]HHmmss[Z]' tz='UTC'}}
           type=raw,value=${{ inputs.extra_tag }},enable=${{ inputs.extra_tag != '' }}
-          - name: Build and push Docker image
     - name: Build and push Docker image
       uses: docker/build-push-action@v7
       with:
