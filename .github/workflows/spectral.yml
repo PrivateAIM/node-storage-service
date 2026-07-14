@@ -1,14 +1,16 @@
 name: Lint OpenAPI schema file with Spectral
 
+# Reactivate this workflow when the Spectral CLI is compatible with Node22.
 on:
-  push:
-    branches:
-      - main
-      - develop
-  pull_request:
-    branches:
-      - main
-      - develop
+  workflow_dispatch:
+#  push:
+#    branches:
+#      - main
+#      - develop
+#  pull_request:
+#    branches:
+#      - main
+#      - develop
 
 jobs:
   build:
