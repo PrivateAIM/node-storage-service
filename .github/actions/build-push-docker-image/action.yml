@@ -1,6 +1,9 @@
 name: Build and push Docker image
 
 inputs:
+  github_token:
+    description: "Token used to authenticate to the registry"
+    required: true
   extra_tag:
     default: ""
     description: "An extra raw tag to apply to the image (e.g. canary, edge)"
@@ -14,7 +17,7 @@ runs:
       with:
         registry: "ghcr.io"
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        password: ${{ inputs.github_token }}
     - name: Extract metadata for Docker
       id: meta
       uses: docker/metadata-action@v6

@@ -23,4 +23,5 @@ jobs:
       - name: Create and publish Docker image from dev branch
         uses: ./.github/actions/build-push-docker-image
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           extra_tag: "edge"
