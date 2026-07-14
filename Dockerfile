@@ -17,6 +17,8 @@ LABEL org.opencontainers.image.licenses="Apache-2.0"
 
 WORKDIR /app
 
+RUN mkdir logs
+
 COPY ./config/ ./config/
 COPY --from=builder /tmp/requirements.txt ./
 COPY pyproject.toml README.md ./
@@ -36,6 +38,6 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 ENTRYPOINT [ "/usr/local/bin/python", "-m", "uvicorn", "project.main:app" ]
-CMD [ "--host", "0.0.0.0", "--port", "8080", "--workers", "4" ]
+CMD [ "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--log-config", "config/logging.json" ]
 
 USER nonroot
