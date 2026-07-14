@@ -1,0 +1,26 @@
+name: Create and publish Docker image from main branch
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [ "closed" ]
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+jobs:
+  build-and-push-image:
+    if: github.event_name == 'push' || github.event.pull_request.merged || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Create and publish Docker image from main branch
+        uses: ./.github/actions/build-push-docker-image
+        with:
+          extra_tag: "canary"
