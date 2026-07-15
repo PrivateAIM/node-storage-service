@@ -1,20 +1,14 @@
 services:
 
-  minio:
-    image: minio/minio:RELEASE.2024-12-13T22-19-12Z
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.39
     environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: s3cr3t_p4ssw0rd
-      MINIO_DEFAULT_BUCKETS: flame
-    command: ["server", "start", "--console-address", ":9001"]
-    healthcheck:
-      test: ["CMD", "curl", "-I", "http://localhost:9000/minio/health/live"]
-      interval: 2s
-      timeout: 5s
-      retries: 5
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: s3cr3t_p4ssw0rd
+      S3_BUCKET: flame
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "8333:8333"  # S3 API port
+      - "23646:23646"  # Admin UI
 
   postgres:
     image: postgres:17.2
@@ -54,7 +48,7 @@ services:
       HUB__AUTH__FLOW: password
       HUB__AUTH__USERNAME: admin
       HUB__AUTH__PASSWORD: start123
-      S3__ENDPOINT: minio:9000
+      S3__ENDPOINT: seaweedfs:8333
       S3__ACCESS_KEY: admin
       S3__SECRET_KEY: s3cr3t_p4ssw0rd
       S3__BUCKET: flame
