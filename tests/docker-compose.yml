@@ -1,0 +1,67 @@
+services:
+
+  minio:
+    image: minio/minio:RELEASE.2024-12-13T22-19-12Z
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: s3cr3t_p4ssw0rd
+      MINIO_DEFAULT_BUCKETS: flame
+    command: ["server", "start", "--console-address", ":9001"]
+    healthcheck:
+      test: ["CMD", "curl", "-I", "http://localhost:9000/minio/health/live"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  postgres:
+    image: postgres:17.2
+    environment:
+      POSTGRES_USER: flame
+      POSTGRES_PASSWORD: s3cr3t_p4ssw0rd
+      POSTGRES_DB: flame
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES__USER:-flame} -d $${POSTGRES__DB:-flame}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1.0
+    environment:
+      KC_BOOTSTRAP_ADMIN: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: s3cr3t_p4ssw0rd
+    command: ["start-dev", "--import-realm"]
+    volumes:
+      - ./docker/keycloak/import:/opt/keycloak/data/import
+    ports:
+      - "8080:8080"
+
+  migrate:
+    build: ..
+    entrypoint: [ "python" ]
+    command: [ "project/migrations/scripts/migrate.py" ]
+    environment:
+      POSTGRES__HOST: postgres
+      POSTGRES__USER: flame
+      POSTGRES__PASSWORD: s3cr3t_p4ssw0rd
+      POSTGRES__DB: flame
+      # These env vars aren't actually needed but need to be defined since they have no default.
+      HUB__AUTH__FLOW: password
+      HUB__AUTH__USERNAME: admin
+      HUB__AUTH__PASSWORD: start123
+      MINIO__ENDPOINT: minio:9000
+      MINIO__ACCESS_KEY: admin
+      MINIO__SECRET_KEY: s3cr3t_p4ssw0rd
+      MINIO__BUCKET: flame
+      OIDC__CERTS_URL: http://keycloak:8080/realms/flame/protocol/openid-connect/certs
+      CRYPTO__PROVIDER: file
+      CRYPTO__ECDH_PRIVATE_KEY_PATH: /
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: no

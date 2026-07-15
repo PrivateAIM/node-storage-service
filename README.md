@@ -108,6 +108,13 @@ Set `HUB__AUTH__FLOW` to `client`, but make sure to not only set `HUB__AUTH__ID`
 
 For testing against a forward proxy, [check the README in the `proxy` directory](./proxy/README.md).
 
+For testing without using testcontainers, this repository provides a Docker compose file that spins up all necessary
+services and executes database migrations. Simply run the following command.
+
+```
+$ docker compose -f tests/docker-compose.yml up -d --build
+```
+
 # License
 
 The FLAME Node Storage Service is released under the Apache 2.0 license.
