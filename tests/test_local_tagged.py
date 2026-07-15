@@ -2,6 +2,7 @@ import string
 import uuid
 import os
 
+from minio import S3Error
 import pytest
 from starlette import status
 
@@ -75,7 +76,7 @@ def test_200_create_tagged_upload(
     auth = BearerAuth(issue_client_access_token(analysis_id))
 
     bucket = os.environ.get("S3__BUCKET", "flame")
-    n_objects = len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/")))
+    n_objects = len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/", recursive=True)))
     with postgres.atomic():
         n_results = len(crud.Result.select())
         n_tags = len(crud.Tag.select())
@@ -94,7 +95,7 @@ def test_200_create_tagged_upload(
     result_url = model.url
 
     # Check that there is exactly one new object inside the S3 bucket and one new entry in each of the database tables.
-    assert len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects + 1
+    assert len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/", recursive=True))) == n_objects + 1
     with postgres.atomic():
         assert len(crud.Result.select()) == n_results + 1
         assert len(crud.Tag.select()) == n_tags + 1
@@ -221,7 +222,12 @@ def test_200_delete_tagged_results(test_client, core_client, rng, s3, postgres):
     assert r.status_code == status.HTTP_200_OK
 
     bucket = os.environ.get("S3__BUCKET", "flame")
-    assert len(list(s3.list_objects(bucket, prefix=f"local/{project.id}/"))) == 0
+    assert len(list(s3.list_objects(bucket, prefix=f"local/{project.id}/", recursive=True))) == 0
+
+    with pytest.raises(S3Error) as e:
+        s3.get_object(bucket, f"local/{project.id}/")
+
+    assert "The specified key does not exist." in str(e.value)
 
     with postgres.atomic():
         assert len(crud.Result.select().where(crud.Result.client_id == analysis.id)) == 0

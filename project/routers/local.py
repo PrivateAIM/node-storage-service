@@ -198,6 +198,7 @@ async def delete_local_results(
     """Delete all objects in S3 and all Postgres result database entries related to the specified project. Returns a
     200 on success, a 400 if the project is still available on the Hub and a 403 if it is not the Hub Adapter client
     that sends the request. In both error cases nothing is deleted at all."""
+
     if client_id != settings.hub_adapter_client_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -211,9 +212,12 @@ async def delete_local_results(
         )
 
     object_ids = []
-    for object_ in s3.list_objects(settings.s3.bucket, prefix=f"local/{project_id}/"):
+    for object_ in s3.list_objects(settings.s3.bucket, prefix=f"local/{project_id}/", recursive=True):
         s3.remove_object(settings.s3.bucket, object_.object_name)
         object_ids.append(object_.object_name.split("/")[-1])
+
+    # Delete the project directory.
+    s3.remove_object(settings.s3.bucket, f"local/{project_id}/")
 
     with db.atomic():
         crud.Result.delete().where(crud.Result.object_id.in_(object_ids)).execute()
@@ -235,6 +239,7 @@ async def get_project_tags(
 ):
     """Get a list of tags assigned to the project for an analysis.
     Returns a 200 on success."""
+
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
     with db.atomic():
@@ -276,6 +281,7 @@ async def create_object_tag(
 ):
     """Tag a specific object and return that file.
     Returns a 200 on success."""
+
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
     # Check if an object with that ID exists.
@@ -312,6 +318,7 @@ async def get_results_by_project_tag(
 ):
     """Get a list of files assigned to a tag.
     Returns a 200 on success."""
+
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
     with db.atomic():
