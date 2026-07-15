@@ -7,8 +7,8 @@ It uses a local object storage to store intermediate files, as well as to enqueu
 
 # Setup
 
-You will need access to a MinIO instance and an identification provider that offers a JWKS endpoint for the access
-tokens it issues.
+You will need access to a S3 instance and an identification provider that offers a JWKS endpoint for the access
+tokens it issues and a Postgres instance.
 
 For manual installation, you will need Python 3.10 or higher and [Poetry](https://python-poetry.org/) installed.
 Clone the repository and run `poetry install` in the root directory.
@@ -45,12 +45,12 @@ The following table shows all available configuration options.
 | HUB__AUTH__PASSWORD            | Password to use for obtaining access tokens using password auth scheme                          |                                   | x<sup>1)</sup> |
 | HUB__AUTH__ID                  | Client ID to use for obtaining access tokens using client credentials auth scheme               |                                   | x<sup>2)</sup> |
 | HUB__AUTH__SECRET              | Client secret to use for obtaining access tokens using client credentials auth scheme           |                                   | x<sup>2)</sup> |
-| MINIO__ENDPOINT                | MinIO S3 API endpoint (without scheme)                                                          |                                   |       x        |
-| MINIO__ACCESS_KEY              | Access key for interacting with MinIO S3 API                                                    |                                   |       x        |
-| MINIO__SECRET_KEY              | Secret key for interacting with MinIO S3 API                                                    |                                   |       x        |
-| MINIO__BUCKET                  | Name of S3 bucket to store result files in                                                      |                                   |       x        |
-| MINIO__REGION                  | Region of S3 bucket to store result files in                                                    | us-east-1                         |                |
-| MINIO__USE_SSL                 | Flag for en-/disabling encrypted traffic to MinIO S3 API                                        | 0                                 |                |
+| S3__ENDPOINT                   | S3 API endpoint (without scheme)                                                                |                                   |       x        |
+| S3__ACCESS_KEY                 | Access key for interacting with S3 API                                                          |                                   |       x        |
+| S3__SECRET_KEY                 | Secret key for interacting with S3 API                                                          |                                   |       x        |
+| S3__BUCKET                     | Name of S3 bucket to store result files in                                                      |                                   |       x        |
+| S3__REGION                     | Region of S3 bucket to store result files in                                                    | us-east-1                         |                |
+| S3__USE_SSL                    | Flag for en-/disabling encrypted traffic to S3 API                                              | 0                                 |                |
 | OIDC__CERTS_URL                | URL to OIDC-complaint JWKS endpoint for validating JWTs                                         |                                   |       x        |
 | OIDC__CLIENT_ID_CLAIM_NAME     | JWT claim to identify authenticated requests with                                               | client_id                         |                |
 | POSTGRES__HOST                 | Hostname of Postgres instance for storing tags and result meta data                             |                                   |       x        |

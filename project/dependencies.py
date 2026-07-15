@@ -18,7 +18,7 @@ from starlette import status
 from project import crypto
 from project.config import (
     Settings,
-    MinioBucketConfig,
+    S3BucketConfig,
     AuthFlow,
     CryptoProvider,
     FileCryptoConfig,
@@ -57,20 +57,20 @@ def get_auth_jwks(settings: Annotated[Settings, Depends(get_settings)]):
     return jwk.JWKSet.from_json(jwks_payload)
 
 
-def __create_minio_from_config(minio: MinioBucketConfig):
+def __create_s3_client_from_config(s3: S3BucketConfig):
     return Minio(
-        minio.endpoint,
-        access_key=minio.access_key,
-        secret_key=minio.secret_key,
-        region=minio.region,
-        secure=minio.use_ssl,
+        s3.endpoint,
+        access_key=s3.access_key,
+        secret_key=s3.secret_key,
+        region=s3.region,
+        secure=s3.use_ssl,
     )
 
 
-def get_local_minio(
+def get_local_s3(
     settings: Annotated[Settings, Depends(get_settings)],
 ):
-    return __create_minio_from_config(settings.minio)
+    return __create_s3_client_from_config(settings.s3)
 
 
 def get_client_id(

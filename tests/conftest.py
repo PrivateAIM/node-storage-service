@@ -18,7 +18,7 @@ from testcontainers.minio import MinioContainer
 from testcontainers.postgres import PostgresContainer
 from minio import Minio
 
-from project.dependencies import get_postgres_db, get_local_minio, get_ecdh_private_key, get_node_id
+from project.dependencies import get_postgres_db, get_local_s3, get_ecdh_private_key, get_node_id
 from project.server import get_server_instance
 from tests.common import env
 from tests.common.auth import get_oid_test_jwk, get_test_ecdh_keypair
@@ -82,40 +82,40 @@ def override_postgres(use_testcontainers, postgres):
 
 
 @pytest.fixture(scope="package")
-def minio(use_testcontainers):
-    access_key = os.environ.get("MINIO__ACCESS_KEY")
-    secret_key = os.environ.get("MINIO__SECRET_KEY")
-    bucket = os.environ.get("MINIO__BUCKET")
+def s3(use_testcontainers):
+    access_key = os.environ.get("S3__ACCESS_KEY", "admin")
+    secret_key = os.environ.get("S3__SECRET_KEY", "s3cr3t_p4ssw0rd")
+    bucket = os.environ.get("S3__BUCKET", "flame")
 
     if use_testcontainers:
         with MinioContainer(
             "minio/minio:RELEASE.2024-12-13T22-19-12Z",
             access_key=access_key,
             secret_key=secret_key,
-        ) as minio:
-            client = minio.get_client()
+        ) as s3:
+            client = s3.get_client()
             client.make_bucket(bucket)
             return client
     else:
-        endpoint = os.environ.get("MINIO__ENDPOINT")
-        region = os.environ.get("MINIO__REGION")
-        secure = bool(int(os.environ.get("MINIO__USE_SSL")))
-        minio = Minio(endpoint, access_key=access_key, secret_key=secret_key, region=region, secure=secure)
-        if not minio.bucket_exists(bucket):
-            minio.make_bucket(bucket)
-        return minio
+        endpoint = os.environ.get("S3__ENDPOINT", "localhost:9000")
+        region = os.environ.get("S3__REGION")
+        secure = bool(int(os.environ.get("S3__USE_SSL", 0)))
+        s3 = Minio(endpoint, access_key=access_key, secret_key=secret_key, region=region, secure=secure)
+        if not s3.bucket_exists(bucket):
+            s3.make_bucket(bucket)
+        return s3
 
 
 @pytest.fixture(scope="package")
-def override_minio(use_testcontainers, minio):
+def override_s3(use_testcontainers, s3):
     if not use_testcontainers:
         yield None
     else:
 
-        def _override_get_local_minio():
-            return minio
+        def _override_get_local_s3():
+            return s3
 
-        yield _override_get_local_minio
+        yield _override_get_local_s3
 
 
 @pytest.fixture(scope="package")
@@ -130,14 +130,14 @@ def override_ecdh_private_key():
 
 # noinspection PyUnresolvedReferences
 @pytest.fixture(scope="package")
-def test_app(override_minio, override_postgres, override_ecdh_private_key):
+def test_app(override_s3, override_postgres, override_ecdh_private_key):
     app = get_server_instance()
 
     if callable(override_postgres):
         app.dependency_overrides[get_postgres_db] = override_postgres
 
-    if callable(override_minio):
-        app.dependency_overrides[get_local_minio] = override_minio
+    if callable(override_s3):
+        app.dependency_overrides[get_local_s3] = override_s3
 
     app.dependency_overrides[get_ecdh_private_key] = override_ecdh_private_key
 
@@ -390,12 +390,12 @@ def remote_node_and_private_key(core_client, realm_id):
 
 
 @pytest.fixture
-def minio_object(minio, rng, project_id):
+def s3_object(s3, rng, project_id):
     blob = next_random_bytes(rng)
     object_name = next_uuid()
-    bucket = os.environ.get("MINIO__BUCKET")
-    obj = minio.put_object(
+    bucket = os.environ.get("S3__BUCKET", "flame")
+    obj = s3.put_object(
         bucket_name=bucket, object_name=f"local/{project_id}/{object_name}", data=BytesIO(blob), length=len(blob)
     )
     yield obj
-    minio.remove_object(bucket_name=bucket, object_name=obj.object_name)
+    s3.remove_object(bucket_name=bucket, object_name=obj.object_name)

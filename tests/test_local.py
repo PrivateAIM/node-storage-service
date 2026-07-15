@@ -39,11 +39,11 @@ def test_200_submit_receive_from_local(
     core_client,
     project_id,
     analysis_id,
-    minio,
+    s3,
     postgres,
 ):
-    bucket = os.environ.get("MINIO__BUCKET")
-    n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
+    bucket = os.environ.get("S3__BUCKET", "flame")
+    n_objects = len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/")))
     before_snapshot = _db_snapshot(postgres)
 
     blob = next_random_bytes(rng)
@@ -55,9 +55,9 @@ def test_200_submit_receive_from_local(
 
     assert r.status_code == status.HTTP_200_OK
 
-    # Check that there is exactly one new object inside the MinIO bucket, but no new database entries since the result
+    # Check that there is exactly one new object inside the S3 bucket, but no new database entries since the result
     # is untagged.
-    assert len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects + 1
+    assert len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects + 1
     assert _db_snapshot(postgres) == before_snapshot
 
     model = LocalUploadResponse(**r.json())
@@ -115,10 +115,10 @@ def test_404_result_from_another_project(test_client, core_client, rng, project_
     assert detail_of(r) == f"Object with ID {object_id} does not exist"
 
 
-def test_400_delete_results(test_client, project_id, minio, postgres):
-    bucket = os.environ.get("MINIO__BUCKET")
+def test_400_delete_results(test_client, project_id, s3, postgres):
+    bucket = os.environ.get("S3__BUCKET", "flame")
 
-    n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
+    n_objects = len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/")))
     before_snapshot = _db_snapshot(postgres)
 
     r = test_client.delete(
@@ -131,14 +131,14 @@ def test_400_delete_results(test_client, project_id, minio, postgres):
     assert detail_of(r) == f"Project '{project_id}' will not be deleted because it is still available on the Hub."
 
     # Test that nothing was deleted.
-    assert len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects
+    assert len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects
     assert _db_snapshot(postgres) == before_snapshot
 
 
-def test_403_delete_results(test_client, project_id, minio, postgres):
-    bucket = os.environ.get("MINIO__BUCKET")
+def test_403_delete_results(test_client, project_id, s3, postgres):
+    bucket = os.environ.get("S3__BUCKET", "flame")
 
-    n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
+    n_objects = len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/")))
     before_snapshot = _db_snapshot(postgres)
 
     client_id = str(uuid.uuid4())
@@ -154,11 +154,11 @@ def test_403_delete_results(test_client, project_id, minio, postgres):
     )
 
     # Test that nothing was deleted.
-    assert len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects
+    assert len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects
     assert _db_snapshot(postgres) == before_snapshot
 
 
-def test_200_delete_results(test_client, core_client, rng, minio, postgres):
+def test_200_delete_results(test_client, core_client, rng, s3, postgres):
     project = core_client.create_project(name=next_prefixed_name())
     analysis = core_client.create_analysis(project_id=project.id, name=next_prefixed_name())
 
@@ -187,8 +187,8 @@ def test_200_delete_results(test_client, core_client, rng, minio, postgres):
 
     assert r.status_code == status.HTTP_200_OK
 
-    bucket = os.environ.get("MINIO__BUCKET")
-    assert len(list(minio.list_objects(bucket, prefix=f"local/{project.id}/"))) == 0
+    bucket = os.environ.get("S3__BUCKET", "flame")
+    assert len(list(s3.list_objects(bucket, prefix=f"local/{project.id}/"))) == 0
 
     # Untagged results should not create any entries inside the postgres result database.
     assert _db_snapshot(postgres) == before_snapshot

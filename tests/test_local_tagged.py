@@ -65,7 +65,7 @@ def test_200_create_tagged_upload(
     analysis_id,
     project_id,
     core_client,
-    minio,
+    s3,
     postgres,
 ):
     # use global random here to generate different tags for each run
@@ -74,8 +74,8 @@ def test_200_create_tagged_upload(
     blob = next_random_bytes(rng)
     auth = BearerAuth(issue_client_access_token(analysis_id))
 
-    bucket = os.environ.get("MINIO__BUCKET")
-    n_objects = len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/")))
+    bucket = os.environ.get("S3__BUCKET", "flame")
+    n_objects = len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/")))
     with postgres.atomic():
         n_results = len(crud.Result.select())
         n_tags = len(crud.Tag.select())
@@ -93,9 +93,8 @@ def test_200_create_tagged_upload(
     model = LocalUploadResponse(**r.json())
     result_url = model.url
 
-    # Check that there is exactly one new object inside the MinIO bucket and one new entry in each of the database
-    # tables.
-    assert len(list(minio.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects + 1
+    # Check that there is exactly one new object inside the S3 bucket and one new entry in each of the database tables.
+    assert len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/"))) == n_objects + 1
     with postgres.atomic():
         assert len(crud.Result.select()) == n_results + 1
         assert len(crud.Tag.select()) == n_tags + 1
@@ -192,7 +191,7 @@ def test_404_get_results_by_tag(test_client):
     assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
 
 
-def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgres):
+def test_200_delete_tagged_results(test_client, core_client, rng, s3, postgres):
     project = core_client.create_project(name=next_prefixed_name())
     analysis = core_client.create_analysis(project_id=project.id, name=next_prefixed_name())
 
@@ -221,16 +220,16 @@ def test_200_delete_tagged_results(test_client, core_client, rng, minio, postgre
 
     assert r.status_code == status.HTTP_200_OK
 
-    bucket = os.environ.get("MINIO__BUCKET")
-    assert len(list(minio.list_objects(bucket, prefix=f"local/{project.id}/"))) == 0
+    bucket = os.environ.get("S3__BUCKET", "flame")
+    assert len(list(s3.list_objects(bucket, prefix=f"local/{project.id}/"))) == 0
 
     with postgres.atomic():
         assert len(crud.Result.select().where(crud.Result.client_id == analysis.id)) == 0
         assert len(crud.Tag.select().where(crud.Tag.project_id == project.id)) == 0
 
 
-def test_tag_existing_object(test_client, minio_object, project_id, analysis_id, postgres):
-    object_id = minio_object.object_name.split("/")[-1]
+def test_tag_existing_object(test_client, s3_object, project_id, analysis_id, postgres):
+    object_id = s3_object.object_name.split("/")[-1]
     filename = next_random_string()
     tag_name = next_random_string(charset=string.ascii_lowercase)
 

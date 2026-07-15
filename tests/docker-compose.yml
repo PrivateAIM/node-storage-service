@@ -54,10 +54,10 @@ services:
       HUB__AUTH__FLOW: password
       HUB__AUTH__USERNAME: admin
       HUB__AUTH__PASSWORD: start123
-      MINIO__ENDPOINT: minio:9000
-      MINIO__ACCESS_KEY: admin
-      MINIO__SECRET_KEY: s3cr3t_p4ssw0rd
-      MINIO__BUCKET: flame
+      S3__ENDPOINT: minio:9000
+      S3__ACCESS_KEY: admin
+      S3__SECRET_KEY: s3cr3t_p4ssw0rd
+      S3__BUCKET: flame
       OIDC__CERTS_URL: http://keycloak:8080/realms/flame/protocol/openid-connect/certs
       CRYPTO__PROVIDER: file
       CRYPTO__ECDH_PRIVATE_KEY_PATH: /

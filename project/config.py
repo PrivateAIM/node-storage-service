@@ -10,7 +10,7 @@ class FrozenBaseModel(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class MinioConnection(FrozenBaseModel):
+class S3Connection(FrozenBaseModel):
     endpoint: str
     access_key: str
     secret_key: str
@@ -18,7 +18,7 @@ class MinioConnection(FrozenBaseModel):
     use_ssl: bool = True
 
 
-class MinioBucketConfig(MinioConnection):
+class S3BucketConfig(S3Connection):
     bucket: str
 
 
@@ -89,7 +89,7 @@ class ProxyConfig(FrozenBaseModel):
 
 class Settings(BaseSettings):
     hub: HubConfig
-    minio: MinioBucketConfig
+    s3: S3BucketConfig
     oidc: OIDCConfig
     postgres: PostgresConfig
     crypto: Annotated[Union[RawCryptoConfig, FileCryptoConfig], Field(discriminator="provider")]
