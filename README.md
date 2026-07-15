@@ -35,41 +35,42 @@ very helpful.
 
 The following table shows all available configuration options.
 
-| **Environment variable**      | **Description**                                                                                 | **Default**                    |  **Required**  |
-|-------------------------------|-------------------------------------------------------------------------------------------------|--------------------------------|:--------------:|
-| HUB__CORE_BASE_URL            | Base URL for the FLAME Core API                                                                 | https://core.privateaim.net    |                |
-| HUB__STORAGE_BASE_URL         | Base URL for the FLAME Storage API                                                              | https://storage.privateaim.net |                |
-| HUB__AUTH_BASE_URL            | Base URL for the FLAME Auth API                                                                 | https://auth.privateaim.net    |                |
-| HUB__AUTH__FLOW               | Authentication flow to use for central FLAME services (`password` or `client`)                  |                                |       x        |
-| HUB__AUTH__USERNAME           | Username to use for obtaining access tokens using password auth scheme                          |                                | x<sup>1)</sup> |
-| HUB__AUTH__PASSWORD           | Password to use for obtaining access tokens using password auth scheme                          |                                | x<sup>1)</sup> |
-| HUB__AUTH__ID                 | Client ID to use for obtaining access tokens using client credentials auth scheme               |                                | x<sup>2)</sup> |
-| HUB__AUTH__SECRET             | Client secret to use for obtaining access tokens using client credentials auth scheme           |                                | x<sup>2)</sup> |
-| MINIO__ENDPOINT               | MinIO S3 API endpoint (without scheme)                                                          |                                |       x        |
-| MINIO__ACCESS_KEY             | Access key for interacting with MinIO S3 API                                                    |                                |       x        |
-| MINIO__SECRET_KEY             | Secret key for interacting with MinIO S3 API                                                    |                                |       x        |
-| MINIO__BUCKET                 | Name of S3 bucket to store result files in                                                      |                                |       x        |
-| MINIO__REGION                 | Region of S3 bucket to store result files in                                                    | us-east-1                      |                |
-| MINIO__USE_SSL                | Flag for en-/disabling encrypted traffic to MinIO S3 API                                        | 0                              |                |
-| OIDC__CERTS_URL               | URL to OIDC-complaint JWKS endpoint for validating JWTs                                         |                                |       x        |
-| OIDC__CLIENT_ID_CLAIM_NAME    | JWT claim to identify authenticated requests with                                               | client_id                      |                |
-| POSTGRES__HOST                | Hostname of Postgres instance for storing tags and result meta data                             |                                |       x        |
-| POSTGRES__PORT                | Port of Postgres instance for storing tags and result meta data                                 | 5432                           |                |
-| POSTGRES__USER                | Username for access to Postgres instance for storing tags and result meta data                  |                                |       x        |
-| POSTGRES__PASSWORD            | Password for access to Postgres instance for storing tags and result meta data                  |                                |       x        |
-| POSTGRES__DB                  | Database of Postgres instance for storing tags and result meta data                             |                                |       x        |
-| POSTGRES__MAX_CONNECTIONS     | Maximum number of connections for pooled Postgres instance                                      | 20                             |                |
-| POSTGRES__STALE_TIMEOUT       | Number of seconds to allow connections to be used                                               | 300                            |                |
-| POSTGRES__KEEPALIVES_IDLE     | How long a connection needs to be idle before the first TCP keepalive probe is sent             | 60                             |                |
-| POSTGRES__KEEPALIVES_INTERVAL | Time between successive TCP probes after the first one                                          | 30                             |                |
-| POSTGRES__KEEPALIVES_COUNT    | Number of failed TCP probes before declaring a connection dead                                  | 3                              |                |
-| CRYPTO__PROVIDER              | Provider for ECDH private key (`raw` or `file`)                                                 |                                |       x        |
-| CRYPTO__ECDH_PRIVATE_KEY      | Contents of ECDH private key file                                                               |                                | x<sup>3)</sup> |
-| CRYPTO__ECDH_PRIVATE_KEY_PATH | Path to ECDH private key file                                                                   |                                | x<sup>4)</sup> |
-| PROXY__HTTP_URL               | URL of HTTP proxy<sup>5)</sup>                                                                  |                                |                |
-| PROXY__HTTPS_URL              | URL of HTTPS proxy<sup>5)</sup>                                                                 |                                |                |
-| EXTRA_CA_CERTS                | Path to a certificate bundle containing additional certificates to be added to the SSL context. |                                |                |
-| HUB_ADAPTER_CLIENT_ID         | Keycloak client ID for the Hub Adapter client.                                                  | hub-adapter                    |                |
+| **Environment variable**       | **Description**                                                                                 | **Default**                       |  **Required**  |
+|--------------------------------|-------------------------------------------------------------------------------------------------|-----------------------------------|:--------------:|
+| HUB__CORE_BASE_URL             | Base URL for the FLAME Core API                                                                 | https://core.privateaim.net       |                |
+| HUB__STORAGE_BASE_URL          | Base URL for the FLAME Storage API                                                              | https://storage.privateaim.net    |                |
+| HUB__AUTH_BASE_URL             | Base URL for the FLAME Auth API                                                                 | https://auth.privateaim.net       |                |
+| HUB__AUTH__FLOW                | Authentication flow to use for central FLAME services (`password` or `client`)                  |                                   |       x        |
+| HUB__AUTH__USERNAME            | Username to use for obtaining access tokens using password auth scheme                          |                                   | x<sup>1)</sup> |
+| HUB__AUTH__PASSWORD            | Password to use for obtaining access tokens using password auth scheme                          |                                   | x<sup>1)</sup> |
+| HUB__AUTH__ID                  | Client ID to use for obtaining access tokens using client credentials auth scheme               |                                   | x<sup>2)</sup> |
+| HUB__AUTH__SECRET              | Client secret to use for obtaining access tokens using client credentials auth scheme           |                                   | x<sup>2)</sup> |
+| MINIO__ENDPOINT                | MinIO S3 API endpoint (without scheme)                                                          |                                   |       x        |
+| MINIO__ACCESS_KEY              | Access key for interacting with MinIO S3 API                                                    |                                   |       x        |
+| MINIO__SECRET_KEY              | Secret key for interacting with MinIO S3 API                                                    |                                   |       x        |
+| MINIO__BUCKET                  | Name of S3 bucket to store result files in                                                      |                                   |       x        |
+| MINIO__REGION                  | Region of S3 bucket to store result files in                                                    | us-east-1                         |                |
+| MINIO__USE_SSL                 | Flag for en-/disabling encrypted traffic to MinIO S3 API                                        | 0                                 |                |
+| OIDC__CERTS_URL                | URL to OIDC-complaint JWKS endpoint for validating JWTs                                         |                                   |       x        |
+| OIDC__CLIENT_ID_CLAIM_NAME     | JWT claim to identify authenticated requests with                                               | client_id                         |                |
+| POSTGRES__HOST                 | Hostname of Postgres instance for storing tags and result meta data                             |                                   |       x        |
+| POSTGRES__PORT                 | Port of Postgres instance for storing tags and result meta data                                 | 5432                              |                |
+| POSTGRES__USER                 | Username for access to Postgres instance for storing tags and result meta data                  |                                   |       x        |
+| POSTGRES__PASSWORD             | Password for access to Postgres instance for storing tags and result meta data                  |                                   |       x        |
+| POSTGRES__DB                   | Database of Postgres instance for storing tags and result meta data                             |                                   |       x        |
+| POSTGRES__MAX_CONNECTIONS      | Maximum number of connections for pooled Postgres instance                                      | 20                                |                |
+| POSTGRES__STALE_TIMEOUT        | Number of seconds to allow connections to be used                                               | 300                               |                |
+| POSTGRES__KEEPALIVES_IDLE      | How long a connection needs to be idle before the first TCP keepalive probe is sent             | 60                                |                |
+| POSTGRES__KEEPALIVES_INTERVAL  | Time between successive TCP probes after the first one                                          | 30                                |                |
+| POSTGRES__KEEPALIVES_COUNT     | Number of failed TCP probes before declaring a connection dead                                  | 3                                 |                |
+| POSTGRES__MIGRATIONS_TABLENAME | Name of the table where peewee stores which migrations have been executed.                      | storage_service_migration_history |                |
+| CRYPTO__PROVIDER               | Provider for ECDH private key (`raw` or `file`)                                                 |                                   |       x        |
+| CRYPTO__ECDH_PRIVATE_KEY       | Contents of ECDH private key file                                                               |                                   | x<sup>3)</sup> |
+| CRYPTO__ECDH_PRIVATE_KEY_PATH  | Path to ECDH private key file                                                                   |                                   | x<sup>4)</sup> |
+| PROXY__HTTP_URL                | URL of HTTP proxy<sup>5)</sup>                                                                  |                                   |                |
+| PROXY__HTTPS_URL               | URL of HTTPS proxy<sup>5)</sup>                                                                 |                                   |                |
+| EXTRA_CA_CERTS                 | Path to a certificate bundle containing additional certificates to be added to the SSL context. |                                   |                |
+| HUB_ADAPTER_CLIENT_ID          | Keycloak client ID for the Hub Adapter client.                                                  | hub-adapter                       |                |
 
 <sup>1)</sup> Only if `HUB__AUTH__FLOW` is set to `password`  
 <sup>2)</sup> Only if `HUB__AUTH__FLOW` is set to `client`  

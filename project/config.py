@@ -64,6 +64,7 @@ class PostgresConfig(FrozenBaseModel):
     keepalives_idle: int = 60
     keepalives_interval: int = 30
     keepalives_count: int = 3
+    migrations_tablename: str = "storage_service_migration_history"
 
 
 class CryptoProvider(str, Enum):
