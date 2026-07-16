@@ -1,0 +1,16 @@
+name: Check source branch
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify source branch
+        if: github.head_ref != 'develop'
+        run: |
+          echo "Only 'develop' can be merged into 'main'"
+          exit 1
