@@ -2,6 +2,7 @@ name: Check source branch
 
 on:
   pull_request:
+    types: [opened, reopened, edited]
     branches:
       - main
 
