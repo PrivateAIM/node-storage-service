@@ -284,8 +284,10 @@ async def create_object_tag(
 
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
-    # Check if an object with that ID exists.
-    _get_object_from_s3(s3, settings, project_id, object_id, client_id)
+    # Check if an object with that ID exists and properly release the connection afterward.
+    r = _get_object_from_s3(s3, settings, project_id, object_id, client_id)
+    r.close()
+    r.release_conn()
 
     tag_object(tag_name, db, project_id, client_id, object_id, filename)
 
