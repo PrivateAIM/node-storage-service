@@ -7,8 +7,8 @@ installing [minikube](https://minikube.sigs.k8s.io/docs/) on your local machine.
 To deploy, simply run the following commands.
 
 ```bash
-kubectl apply -f ./minio-deployment.yaml
-kubectl apply -f ./minio-service.yaml
+kubectl apply -f ./seaweedfs-deployment.yaml
+kubectl apply -f ./seaweedfs-service.yaml
 kubectl apply -f ./node-storage-deployment.yaml
 kubectl apply -f ./node-storage-service.yaml
 ```

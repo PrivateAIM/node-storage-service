@@ -20,15 +20,15 @@ spec:
             - containerPort: 8080
               name: http-storage
           env:
-            - name: MINIO__ENDPOINT
-              value: local-minio-service:9000
-            - name: MINIO__ACCESS_KEY
+            - name: S3__ENDPOINT
+              value: local-seaweedfs-service:8333
+            - name: S3__ACCESS_KEY
               value: admin
-            - name: MINIO__SECRET_KEY
+            - name: S3__SECRET_KEY
               value: s3cr3t_p4ssw0rd
-            - name: MINIO__USE_SSL
+            - name: S3__USE_SSL
               value: "false"
-            - name: MINIO__BUCKET
+            - name: S3__BUCKET
               value: flame
             - name: HUB__AUTH_USERNAME
               value: your_hub_username_here

@@ -20,16 +20,16 @@ spec:
             - containerPort: 8080
               name: http-storage
           env:
-            - name: MINIO__ENDPOINT
-              value: "{{ .Release.Name }}-local-minio-service"
-            - name: MINIO__ACCESS_KEY
-              value: {{ required "MinIO user must be set." .Values.env.MINIO_ACCESS_KEY | quote }}
-            - name: MINIO__SECRET_KEY
-              value: {{ required "MinIO password must be set." .Values.env.MINIO_SECRET_KEY | quote }}
-            - name: MINIO__USE_SSL
-              value: {{ .Values.env.MINIO_USE_SSL | default false | quote }}
-            - name: MINIO__BUCKET
-              value: {{ required "MinIO bucket must be set." .Values.env.MINIO_BUCKET | quote }}
+            - name: S3__ENDPOINT
+              value: "{{ .Release.Name }}-local-seaweedfs-service"
+            - name: S3__ACCESS_KEY
+              value: {{ required "S3 user must be set." .Values.env.S3_ACCESS_KEY | quote }}
+            - name: S3__SECRET_KEY
+              value: {{ required "S3 password must be set." .Values.env.S3_SECRET_KEY | quote }}
+            - name: S3__USE_SSL
+              value: {{ .Values.env.S3_USE_SSL | default false | quote }}
+            - name: S3__BUCKET
+              value: {{ required "S3 bucket must be set." .Values.env.S3_BUCKET | quote }}
             - name: HUB__AUTH_USERNAME
               value: {{ required "Hub username must be set." .Values.env.HUB_USERNAME | quote }}
             - name: HUB__AUTH_PASSWORD
