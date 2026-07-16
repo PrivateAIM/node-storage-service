@@ -6,7 +6,6 @@ The FLAME Node Storage Service is responsible for handling result files for fede
 It uses a local object storage to store intermediate files, as well as to enqueue files for upload to the FLAME Hub.
 
 # Setup
-
 You will need access to a S3 instance and an identification provider that offers a JWKS endpoint for the access
 tokens it issues and a Postgres instance.
 
