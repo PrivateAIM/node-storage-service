@@ -102,4 +102,5 @@ class Settings(BaseSettings):
         frozen=True,
         env_file=".env",
         env_nested_delimiter="__",
+        extra="ignore",
     )

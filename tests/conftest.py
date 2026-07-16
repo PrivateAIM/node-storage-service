@@ -14,11 +14,13 @@ import pytest
 import truststore
 from jwcrypto import jwk
 from starlette.testclient import TestClient
-from testcontainers.minio import MinioContainer
+from testcontainers.core.container import DockerContainer
+from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 from testcontainers.postgres import PostgresContainer
 from minio import Minio
 
 from project.dependencies import get_postgres_db, get_local_s3, get_ecdh_private_key, get_node_id
+from project.migrations.scripts.router import init_router
 from project.server import get_server_instance
 from tests.common import env
 from tests.common.auth import get_oid_test_jwk, get_test_ecdh_keypair
@@ -39,34 +41,41 @@ def use_testcontainers():
 
 @pytest.fixture(scope="package")
 def postgres(use_testcontainers):
+    host = os.environ.get("POSTGRES__HOST")
+    port = os.environ.get("POSTGRES__PORT", 5432)
     dbname = os.environ.get("POSTGRES__DB")
     user = os.environ.get("POSTGRES__USER")
     password = os.environ.get("POSTGRES__PASSWORD")
 
     if use_testcontainers:
-        with PostgresContainer(
+        postgres_container = PostgresContainer(
             "postgres:17.2",
             username=user,
             password=password,
             dbname=dbname,
             driver=None,
-        ) as postgres:
-            pg_url = urllib.parse.urlparse(postgres.get_connection_url())
-            postgres = pw.PostgresqlDatabase(
-                pg_url.path.lstrip("/"),  # trim leading slash
-                user=pg_url.username,
-                password=pg_url.password,
-                host=pg_url.hostname,
-                port=pg_url.port,
-            )
-    else:
-        host = os.environ.get("POSTGRES__HOST")
-        port = os.environ.get("POSTGRES__PORT", 5432)
-        postgres = pw.PostgresqlDatabase(dbname, user=user, password=password, host=host, port=port)
+            ports=[5432],
+        ).waiting_for(LogMessageWaitStrategy("database system is ready to accept connections"))
+        postgres_container.start()
+
+        host = postgres_container.get_container_host_ip()
+        port = postgres_container.get_exposed_port(5432)
+
+        # Set env vars here because get_postgres_db is called directly during the lifespan.
+        os.environ["POSTGRES__HOST"] = host
+        os.environ["POSTGRES__PORT"] = str(port)
+
+    postgres = pw.PostgresqlDatabase(dbname, user=user, password=password, host=host, port=port)
+
+    # Execute database migrations.
+    init_router().run()
 
     yield postgres
 
     postgres.close()
+
+    if use_testcontainers:
+        postgres_container.stop()
 
 
 @pytest.fixture(scope="package")
@@ -86,24 +95,33 @@ def s3(use_testcontainers):
     access_key = os.environ.get("S3__ACCESS_KEY", "admin")
     secret_key = os.environ.get("S3__SECRET_KEY", "s3cr3t_p4ssw0rd")
     bucket = os.environ.get("S3__BUCKET", "flame")
+    endpoint = os.environ.get("S3__ENDPOINT", "localhost:8333")
+    region = os.environ.get("S3__REGION")
+    secure = bool(int(os.environ.get("S3__USE_SSL", 0)))
 
     if use_testcontainers:
-        with MinioContainer(
-            "minio/minio:RELEASE.2024-12-13T22-19-12Z",
-            access_key=access_key,
-            secret_key=secret_key,
-        ) as s3:
-            client = s3.get_client()
-            client.make_bucket(bucket)
-            return client
-    else:
-        endpoint = os.environ.get("S3__ENDPOINT", "localhost:9000")
-        region = os.environ.get("S3__REGION")
-        secure = bool(int(os.environ.get("S3__USE_SSL", 0)))
-        s3 = Minio(endpoint, access_key=access_key, secret_key=secret_key, region=region, secure=secure)
-        if not s3.bucket_exists(bucket):
-            s3.make_bucket(bucket)
-        return s3
+        seaweedfs = DockerContainer(
+            image="chrislusf/seaweedfs:4.39",
+            env={
+                "AWS_ACCESS_KEY_ID": "admin",
+                "AWS_SECRET_ACCESS_KEY": "s3cr3t_p4ssw0rd",
+                "S3_BUCKET": "flame",
+            },
+            ports=[8333],
+        ).waiting_for(LogMessageWaitStrategy("All enabled components are running and ready to use"))
+        seaweedfs.start()
+
+        endpoint = f"{seaweedfs.get_container_host_ip()}:{seaweedfs.get_exposed_port(8333)}"
+        secure = False
+
+    s3 = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure, region=region)
+
+    assert s3.bucket_exists(bucket)
+
+    yield s3
+
+    if use_testcontainers:
+        seaweedfs.stop()
 
 
 @pytest.fixture(scope="package")
@@ -147,7 +165,7 @@ def test_app(override_s3, override_postgres, override_ecdh_private_key):
 @pytest.fixture(scope="package")
 def test_client(test_app):
     # see https://fastapi.tiangolo.com/advanced/testing-events/
-    # this is to ensure that the lifespan events are called
+    # This is to ensure that the lifespan events are called.
     with TestClient(test_app) as test_client:
         yield test_client
 
