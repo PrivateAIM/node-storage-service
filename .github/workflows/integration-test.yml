@@ -13,10 +13,6 @@ env:
   HUB_AUTH_BASE_URL: https://auth.privateaim.dev
 
 on:
-  push:
-    branches:
-      - main
-      - develop
   pull_request:
     branches:
       - main
