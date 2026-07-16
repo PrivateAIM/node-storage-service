@@ -21,7 +21,7 @@ spec:
               name: http-storage
           env:
             - name: S3__ENDPOINT
-              value: "{{ .Release.Name }}-local-seaweedfs-service"
+              value: "{{ .Release.Name }}-local-seaweedfs-service:8333"
             - name: S3__ACCESS_KEY
               value: {{ required "S3 user must be set." .Values.env.S3_ACCESS_KEY | quote }}
             - name: S3__SECRET_KEY
