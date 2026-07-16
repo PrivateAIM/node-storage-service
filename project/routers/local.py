@@ -20,7 +20,7 @@ from project.config import Settings
 from project.dependencies import (
     get_client_id,
     get_settings,
-    get_local_minio,
+    get_local_s3,
     get_postgres_db,
     get_core_client,
     get_storage_client,
@@ -104,11 +104,11 @@ def _get_project_id_for_analysis_or_raise(core_client: flame_hub.CoreClient, ana
 
 
 def _get_object_from_s3(
-    minio: Minio, settings: Settings, project_id: str, object_id: uuid.UUID, client_id: str
+    s3: Minio, settings: Settings, project_id: str, object_id: uuid.UUID, client_id: str
 ) -> HTTPResponse:
     try:
-        return minio.get_object(
-            settings.minio.bucket,
+        return s3.get_object(
+            settings.s3.bucket,
             f"local/{project_id}/{object_id}",
         )
     except S3Error as e:
@@ -140,7 +140,7 @@ async def submit_intermediate_result_to_local(
     client_id: Annotated[str, Depends(get_client_id)],
     file: Annotated[UploadFile, File()],
     settings: Annotated[Settings, Depends(get_settings)],
-    minio: Annotated[Minio, Depends(get_local_minio)],
+    s3: Annotated[Minio, Depends(get_local_s3)],
     db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     request: Request,
@@ -162,8 +162,8 @@ async def submit_intermediate_result_to_local(
             tag=tag, db=db, project_id=project_id, client_id=client_id, object_id=object_id, filename=file.filename
         )
 
-    minio.put_object(
-        settings.minio.bucket,
+    s3.put_object(
+        settings.s3.bucket,
         object_name,
         data=file.file,
         length=file.size,
@@ -190,14 +190,15 @@ async def submit_intermediate_result_to_local(
 async def delete_local_results(
     project_id: str,
     client_id: Annotated[str, Depends(get_client_id)],
-    minio: Annotated[Minio, Depends(get_local_minio)],
+    s3: Annotated[Minio, Depends(get_local_s3)],
     db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     settings: Annotated[Settings, Depends(get_settings)],
 ):
-    """Delete all objects in MinIO and all Postgres result database entries related to the specified project. Returns a
+    """Delete all objects in S3 and all Postgres result database entries related to the specified project. Returns a
     200 on success, a 400 if the project is still available on the Hub and a 403 if it is not the Hub Adapter client
     that sends the request. In both error cases nothing is deleted at all."""
+
     if client_id != settings.hub_adapter_client_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -211,9 +212,12 @@ async def delete_local_results(
         )
 
     object_ids = []
-    for object_ in minio.list_objects(settings.minio.bucket, prefix=f"local/{project_id}/"):
-        minio.remove_object(settings.minio.bucket, object_.object_name)
+    for object_ in s3.list_objects(settings.s3.bucket, prefix=f"local/{project_id}/", recursive=True):
+        s3.remove_object(settings.s3.bucket, object_.object_name)
         object_ids.append(object_.object_name.split("/")[-1])
+
+    # Delete the project directory.
+    s3.remove_object(settings.s3.bucket, f"local/{project_id}/")
 
     with db.atomic():
         crud.Result.delete().where(crud.Result.object_id.in_(object_ids)).execute()
@@ -235,6 +239,7 @@ async def get_project_tags(
 ):
     """Get a list of tags assigned to the project for an analysis.
     Returns a 200 on success."""
+
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
     with db.atomic():
@@ -269,17 +274,20 @@ async def create_object_tag(
     client_id: Annotated[str, Depends(get_client_id)],
     settings: Annotated[Settings, Depends(get_settings)],
     db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
-    minio: Annotated[Minio, Depends(get_local_minio)],
+    s3: Annotated[Minio, Depends(get_local_s3)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     request: Request,
     filename: str | None = None,
 ):
     """Tag a specific object and return that file.
     Returns a 200 on success."""
+
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
-    # Check if an object with that ID exists.
-    _get_object_from_s3(minio, settings, project_id, object_id, client_id)
+    # Check if an object with that ID exists and properly release the connection afterward.
+    r = _get_object_from_s3(s3, settings, project_id, object_id, client_id)
+    r.close()
+    r.release_conn()
 
     tag_object(tag_name, db, project_id, client_id, object_id, filename)
 
@@ -312,6 +320,7 @@ async def get_results_by_project_tag(
 ):
     """Get a list of files assigned to a tag.
     Returns a 200 on success."""
+
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
     with db.atomic():
@@ -348,7 +357,7 @@ async def retrieve_intermediate_result_from_local(
     client_id: Annotated[str, Depends(get_client_id)],
     object_id: uuid.UUID,
     settings: Annotated[Settings, Depends(get_settings)],
-    minio: Annotated[Minio, Depends(get_local_minio)],
+    s3: Annotated[Minio, Depends(get_local_s3)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
 ):
     """Get a local result as file."""
@@ -356,7 +365,7 @@ async def retrieve_intermediate_result_from_local(
     # retrieve project id from analysis
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
-    response = _get_object_from_s3(minio, settings, project_id, object_id, client_id)
+    response = _get_object_from_s3(s3, settings, project_id, object_id, client_id)
 
     return StreamingResponse(
         response,
@@ -376,7 +385,7 @@ async def upload_local_file(
     request: Request,
     remote_node_id: str,
     client_id: Annotated[str, Depends(get_client_id)],
-    minio: Annotated[Minio, Depends(get_local_minio)],
+    s3: Annotated[Minio, Depends(get_local_s3)],
     settings: Annotated[Settings, Depends(get_settings)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
@@ -391,7 +400,7 @@ async def upload_local_file(
     # Retrieve project id from analysis.
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
-    response = _get_object_from_s3(minio, settings, project_id, object_id, client_id)
+    response = _get_object_from_s3(s3, settings, project_id, object_id, client_id)
 
     # Check for filename in database. If there is no filename, use object_id per default.
     filename = str(object_id)

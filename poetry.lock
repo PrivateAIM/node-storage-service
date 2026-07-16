@@ -1400,6 +1400,22 @@ postgres = ["psycopg2-binary"]
 psycopg3 = ["psycopg[binary]"]
 
 [[package]]
+name = "peewee-migrate"
+version = "1.15.0"
+description = "Support for migrations in Peewee ORM"
+optional = false
+python-versions = "<4,>=3.10"
+groups = ["main"]
+files = [
+    {file = "peewee_migrate-1.15.0-py3-none-any.whl", hash = "sha256:c94a27f0c38b9746f2ef7814e40b90128ff921b8b1921fbffec57211f4c1abcc"},
+    {file = "peewee_migrate-1.15.0.tar.gz", hash = "sha256:0fd9fbc5cb2e6749d88b38c48c4ca24fb4a25368751b9c7a76cc1c78c767cf83"},
+]
+
+[package.dependencies]
+click = "*"
+peewee = "*"
+
+[[package]]
 name = "platformdirs"
 version = "4.10.0"
 description = "A small Python package for determining appropriate platform-specific dirs, e.g. a `user data dir`."
@@ -3038,4 +3054,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "f3bc7d92ba32c318c1033dce2d6bc6e5c0f3335ba63976315d0c424efd20f1cb"
+content-hash = "9aac5eaa09c5af3c99f7ce27cb885f8fb4f32edbf0461b14657e1951c8eaea7a"

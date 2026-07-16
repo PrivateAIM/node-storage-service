@@ -14,11 +14,13 @@ import pytest
 import truststore
 from jwcrypto import jwk
 from starlette.testclient import TestClient
-from testcontainers.minio import MinioContainer
+from testcontainers.core.container import DockerContainer
+from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 from testcontainers.postgres import PostgresContainer
 from minio import Minio
 
-from project.dependencies import get_postgres_db, get_local_minio, get_ecdh_private_key, get_node_id
+from project.dependencies import get_postgres_db, get_local_s3, get_ecdh_private_key, get_node_id
+from project.migrations.scripts.router import init_router
 from project.server import get_server_instance
 from tests.common import env
 from tests.common.auth import get_oid_test_jwk, get_test_ecdh_keypair
@@ -39,34 +41,41 @@ def use_testcontainers():
 
 @pytest.fixture(scope="package")
 def postgres(use_testcontainers):
+    host = os.environ.get("POSTGRES__HOST")
+    port = os.environ.get("POSTGRES__PORT", 5432)
     dbname = os.environ.get("POSTGRES__DB")
     user = os.environ.get("POSTGRES__USER")
     password = os.environ.get("POSTGRES__PASSWORD")
 
     if use_testcontainers:
-        with PostgresContainer(
+        postgres_container = PostgresContainer(
             "postgres:17.2",
             username=user,
             password=password,
             dbname=dbname,
             driver=None,
-        ) as postgres:
-            pg_url = urllib.parse.urlparse(postgres.get_connection_url())
-            postgres = pw.PostgresqlDatabase(
-                pg_url.path.lstrip("/"),  # trim leading slash
-                user=pg_url.username,
-                password=pg_url.password,
-                host=pg_url.hostname,
-                port=pg_url.port,
-            )
-    else:
-        host = os.environ.get("POSTGRES__HOST")
-        port = os.environ.get("POSTGRES__PORT", 5432)
-        postgres = pw.PostgresqlDatabase(dbname, user=user, password=password, host=host, port=port)
+            ports=[5432],
+        ).waiting_for(LogMessageWaitStrategy("database system is ready to accept connections"))
+        postgres_container.start()
+
+        host = postgres_container.get_container_host_ip()
+        port = postgres_container.get_exposed_port(5432)
+
+        # Set env vars here because get_postgres_db is called directly during the lifespan.
+        os.environ["POSTGRES__HOST"] = host
+        os.environ["POSTGRES__PORT"] = str(port)
+
+    postgres = pw.PostgresqlDatabase(dbname, user=user, password=password, host=host, port=port)
+
+    # Execute database migrations.
+    init_router().run()
 
     yield postgres
 
     postgres.close()
+
+    if use_testcontainers:
+        postgres_container.stop()
 
 
 @pytest.fixture(scope="package")
@@ -82,40 +91,49 @@ def override_postgres(use_testcontainers, postgres):
 
 
 @pytest.fixture(scope="package")
-def minio(use_testcontainers):
-    access_key = os.environ.get("MINIO__ACCESS_KEY")
-    secret_key = os.environ.get("MINIO__SECRET_KEY")
-    bucket = os.environ.get("MINIO__BUCKET")
+def s3(use_testcontainers):
+    access_key = os.environ.get("S3__ACCESS_KEY", "admin")
+    secret_key = os.environ.get("S3__SECRET_KEY", "s3cr3t_p4ssw0rd")
+    bucket = os.environ.get("S3__BUCKET", "flame")
+    endpoint = os.environ.get("S3__ENDPOINT", "localhost:8333")
+    region = os.environ.get("S3__REGION")
+    secure = bool(int(os.environ.get("S3__USE_SSL", 0)))
 
     if use_testcontainers:
-        with MinioContainer(
-            "minio/minio:RELEASE.2024-12-13T22-19-12Z",
-            access_key=access_key,
-            secret_key=secret_key,
-        ) as minio:
-            client = minio.get_client()
-            client.make_bucket(bucket)
-            return client
-    else:
-        endpoint = os.environ.get("MINIO__ENDPOINT")
-        region = os.environ.get("MINIO__REGION")
-        secure = bool(int(os.environ.get("MINIO__USE_SSL")))
-        minio = Minio(endpoint, access_key=access_key, secret_key=secret_key, region=region, secure=secure)
-        if not minio.bucket_exists(bucket):
-            minio.make_bucket(bucket)
-        return minio
+        seaweedfs = DockerContainer(
+            image="chrislusf/seaweedfs:4.39",
+            env={
+                "AWS_ACCESS_KEY_ID": "admin",
+                "AWS_SECRET_ACCESS_KEY": "s3cr3t_p4ssw0rd",
+                "S3_BUCKET": "flame",
+            },
+            ports=[8333],
+        ).waiting_for(LogMessageWaitStrategy("All enabled components are running and ready to use"))
+        seaweedfs.start()
+
+        endpoint = f"{seaweedfs.get_container_host_ip()}:{seaweedfs.get_exposed_port(8333)}"
+        secure = False
+
+    s3 = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure, region=region)
+
+    assert s3.bucket_exists(bucket)
+
+    yield s3
+
+    if use_testcontainers:
+        seaweedfs.stop()
 
 
 @pytest.fixture(scope="package")
-def override_minio(use_testcontainers, minio):
+def override_s3(use_testcontainers, s3):
     if not use_testcontainers:
         yield None
     else:
 
-        def _override_get_local_minio():
-            return minio
+        def _override_get_local_s3():
+            return s3
 
-        yield _override_get_local_minio
+        yield _override_get_local_s3
 
 
 @pytest.fixture(scope="package")
@@ -130,14 +148,14 @@ def override_ecdh_private_key():
 
 # noinspection PyUnresolvedReferences
 @pytest.fixture(scope="package")
-def test_app(override_minio, override_postgres, override_ecdh_private_key):
+def test_app(override_s3, override_postgres, override_ecdh_private_key):
     app = get_server_instance()
 
     if callable(override_postgres):
         app.dependency_overrides[get_postgres_db] = override_postgres
 
-    if callable(override_minio):
-        app.dependency_overrides[get_local_minio] = override_minio
+    if callable(override_s3):
+        app.dependency_overrides[get_local_s3] = override_s3
 
     app.dependency_overrides[get_ecdh_private_key] = override_ecdh_private_key
 
@@ -147,7 +165,7 @@ def test_app(override_minio, override_postgres, override_ecdh_private_key):
 @pytest.fixture(scope="package")
 def test_client(test_app):
     # see https://fastapi.tiangolo.com/advanced/testing-events/
-    # this is to ensure that the lifespan events are called
+    # This is to ensure that the lifespan events are called.
     with TestClient(test_app) as test_client:
         yield test_client
 
@@ -390,12 +408,12 @@ def remote_node_and_private_key(core_client, realm_id):
 
 
 @pytest.fixture
-def minio_object(minio, rng, project_id):
+def s3_object(s3, rng, project_id):
     blob = next_random_bytes(rng)
     object_name = next_uuid()
-    bucket = os.environ.get("MINIO__BUCKET")
-    obj = minio.put_object(
+    bucket = os.environ.get("S3__BUCKET", "flame")
+    obj = s3.put_object(
         bucket_name=bucket, object_name=f"local/{project_id}/{object_name}", data=BytesIO(blob), length=len(blob)
     )
     yield obj
-    minio.remove_object(bucket_name=bucket, object_name=obj.object_name)
+    s3.remove_object(bucket_name=bucket, object_name=obj.object_name)

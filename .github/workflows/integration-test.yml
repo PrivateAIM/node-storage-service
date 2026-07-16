@@ -1,10 +1,9 @@
 name: Integration test
 
 env:
-  MINIO_ROOT_USER: admin
-  MINIO_ROOT_PASSWORD: s3cr3t_p4ssw0rd
-  MINIO_LOCAL_BUCKET_NAME: flame
-  MINIO_REMOTE_BUCKET_NAME: upload
+  S3_ROOT_USER: admin
+  S3_ROOT_PASSWORD: s3cr3t_p4ssw0rd
+  S3_LOCAL_BUCKET_NAME: flame
   POSTGRES_USER: flame
   POSTGRES_PASSWORD: s3cr3t_p4ssw0rd
   POSTGRES_DB: flame
@@ -38,10 +37,10 @@ jobs:
       - name: Run tests
         run: poetry run pytest -vra -m "not live"
         env:
-          MINIO__ACCESS_KEY: ${{env.MINIO_ROOT_USER}}
-          MINIO__SECRET_KEY: ${{env.MINIO_ROOT_PASSWORD}}
-          MINIO__BUCKET: ${{env.MINIO_LOCAL_BUCKET_NAME}}
-          MINIO__ENDPOINT: localhost:9000
+          S3__ACCESS_KEY: ${{env.S3_ROOT_USER}}
+          S3__SECRET_KEY: ${{env.S3_ROOT_PASSWORD}}
+          S3__BUCKET: ${{env.S3_LOCAL_BUCKET_NAME}}
+          S3__ENDPOINT: localhost:8333
           HUB__AUTH__FLOW: client
           HUB__AUTH__ID: ${{secrets.HUB_CLIENT_ID}}
           HUB__AUTH__SECRET: ${{secrets.HUB_CLIENT_SECRET}}
@@ -59,21 +58,14 @@ jobs:
           HUB__STORAGE_BASE_URL: ${{env.HUB_STORAGE_BASE_URL}}
 
     services:
-      minio:
-        # not possible to use official minio image since it requires commands to start up
-        # which gh doesn't support :(
-        image: bitnamilegacy/minio:2024.12.13
+      seaweedfs:
+        image: chrislusf/seaweedfs:4.39
         env:
-          MINIO_ROOT_USER: ${{env.MINIO_ROOT_USER}}
-          MINIO_ROOT_PASSWORD: ${{env.MINIO_ROOT_PASSWORD}}
-          MINIO_DEFAULT_BUCKETS: ${{env.MINIO_LOCAL_BUCKET_NAME}}
+          AWS_ACCESS_KEY_ID: ${{env.S3_ROOT_USER}}
+          AWS_SECRET_ACCESS_KEY: ${{env.S3_ROOT_PASSWORD}}
+          S3_BUCKET: ${{env.S3_LOCAL_BUCKET_NAME}}
         ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -I http://localhost:9000/minio/health/live"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 5
+          - 8333:8333
 
       postgres:
         image: postgres:17.2

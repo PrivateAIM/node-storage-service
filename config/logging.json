@@ -15,7 +15,7 @@
   "handlers": {
     "file_handler": {
       "class": "logging.handlers.RotatingFileHandler",
-      "filename": "flame-storage-debug.log",
+      "filename": "logs/flame-storage.log",
       "encoding": "utf-8",
       "mode": "a",
       "maxBytes": 4194304,
@@ -35,22 +35,6 @@
     "handlers": ["file_handler", "console_handler"]
   },
   "loggers": {
-    "fastapi": {
-      "level": "INFO",
-      "propagate": true
-    },
-    "uvicorn": {
-      "level": "INFO",
-      "propagate": true
-    },
-    "uvicorn.error": {
-      "level": "INFO",
-      "propagate": true
-    },
-    "uvicorn.access": {
-      "level": "INFO",
-      "propagate": true
-    },
     "httpx": {
       "level": "WARNING"
     }

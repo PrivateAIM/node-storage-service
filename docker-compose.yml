@@ -1,17 +1,16 @@
 services:
 
-  minio:
-    image: minio/minio:RELEASE.2024-12-13T22-19-12Z
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.39
     environment:
-      - "MINIO_ROOT_USER=${MINIO__ACCESS_KEY:-admin}"
-      - "MINIO_ROOT_PASSWORD=${MINIO__SECRET_KEY:-s3cr3t_p4ssw0rd}"
-      - "MINIO_DEFAULT_BUCKETS=${MINIO__BUCKET:-flame}"
-    command: ["server", "start"]
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: s3cr3t_p4ssw0rd
+      S3_BUCKET: flame
     healthcheck:
-      test: ["CMD", "curl", "-I", "http://localhost:9000/minio/health/live"]
-      interval: 2s
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:8333/healthz || exit 1" ]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   postgres:
     image: postgres:17.2
@@ -19,22 +18,36 @@ services:
       - "POSTGRES_USER=${POSTGRES__USER:-flame}"
       - "POSTGRES_PASSWORD=${POSTGRES__PASSWORD:-s3cr3t_p4ssw0rd}"
       - "POSTGRES_DB=${POSTGRES__DB:-flame}"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES__USER:-flame} -d $${POSTGRES__DB:-flame}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.1.0
     environment:
       - "KC_BOOTSTRAP_ADMIN_USERNAME=admin"
       - "KC_BOOTSTRAP_ADMIN_PASSWORD=s3cr3t_p4ssw0rd"
+      - "KC_HEALTH_ENABLED=true"
     command: ["start-dev", "--import-realm"]
     volumes:
       - ./docker/keycloak/import:/opt/keycloak/data/import
+    healthcheck:
+      test: [ "CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000; printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3; timeout 5 cat <&3 | grep '200 OK'" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   node-storage-service:
     build: .
     depends_on:
-      - minio
-      - postgres
-      - keycloak
+      seaweedfs:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
     environment:
       - "HUB__CORE_BASE_URL=https://core.privateaim.dev"
       - "HUB__STORAGE_BASE_URL=https://storage.privateaim.dev"
@@ -42,11 +55,11 @@ services:
       - "HUB__AUTH__FLOW=client"
       - "HUB__AUTH__ID=${HUB__AUTH__ID}"
       - "HUB__AUTH__SECRET=${HUB__AUTH__SECRET}"
-      - "MINIO__ENDPOINT=minio:9000"
-      - "MINIO__ACCESS_KEY=${MINIO__ACCESS_KEY:-admin}"
-      - "MINIO__SECRET_KEY=${MINIO__SECRET_KEY:-s3cr3t_p4ssw0rd}"
-      - "MINIO__BUCKET=${MINIO__BUCKET:-flame}"
-      - "MINIO__USE_SSL=0"
+      - "S3__ENDPOINT=seaweedfs:8333"
+      - "S3__ACCESS_KEY=${S3__ACCESS_KEY:-admin}"
+      - "S3__SECRET_KEY=${S3__SECRET_KEY:-s3cr3t_p4ssw0rd}"
+      - "S3__BUCKET=${S3__BUCKET:-flame}"
+      - "S3__USE_SSL=0"
       - "POSTGRES__HOST=postgres"
       - "POSTGRES__USER=${POSTGRES__USER:-flame}"
       - "POSTGRES__PASSWORD=${POSTGRES__PASSWORD:-s3cr3t_p4ssw0rd}"
@@ -59,3 +72,9 @@ services:
       - ./tests/assets/alice.pfx:/app/ecdh.pfx
     ports:
       - "8080:8080"
+    healthcheck:
+      test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')\"" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

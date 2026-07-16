@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: "{{ .Release.Name }}-local-minio-service"
+  name: local-seaweedfs-service
 spec:
   type: NodePort  # setting nodePort later is optional
   selector:
-    app: "{{ .Release.Name }}-minio"
+    app: seaweedfs
   ports:
     - protocol: TCP
-      port: 9000  # port of this service
+      port: 8333  # port of this service
       targetPort: http-s3  # port on the pod

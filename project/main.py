@@ -17,9 +17,6 @@ def config_server(host: str = "0.0.0.0", port: int = 8000):
     with open(log_config_file_path) as f:
         log_config = json.load(f)
 
-    filename = log_config["handlers"]["file_handler"]["filename"]
-    log_config["handlers"]["file_handler"]["filename"] = get_project_root() / "logs" / filename
-
     config = uvicorn.Config(app, host=host, port=port, log_config=log_config)
 
     return uvicorn.Server(config)

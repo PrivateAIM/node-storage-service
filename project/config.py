@@ -10,7 +10,7 @@ class FrozenBaseModel(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class MinioConnection(FrozenBaseModel):
+class S3Connection(FrozenBaseModel):
     endpoint: str
     access_key: str
     secret_key: str
@@ -18,7 +18,7 @@ class MinioConnection(FrozenBaseModel):
     use_ssl: bool = True
 
 
-class MinioBucketConfig(MinioConnection):
+class S3BucketConfig(S3Connection):
     bucket: str
 
 
@@ -64,6 +64,7 @@ class PostgresConfig(FrozenBaseModel):
     keepalives_idle: int = 60
     keepalives_interval: int = 30
     keepalives_count: int = 3
+    migrations_tablename: str = "storage_service_migration_history"
 
 
 class CryptoProvider(str, Enum):
@@ -88,7 +89,7 @@ class ProxyConfig(FrozenBaseModel):
 
 class Settings(BaseSettings):
     hub: HubConfig
-    minio: MinioBucketConfig
+    s3: S3BucketConfig
     oidc: OIDCConfig
     postgres: PostgresConfig
     crypto: Annotated[Union[RawCryptoConfig, FileCryptoConfig], Field(discriminator="provider")]
@@ -101,4 +102,5 @@ class Settings(BaseSettings):
         frozen=True,
         env_file=".env",
         env_nested_delimiter="__",
+        extra="ignore",
     )

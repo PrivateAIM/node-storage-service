@@ -9,7 +9,8 @@ from psycopg2 import DatabaseError
 from pydantic import BaseModel
 from starlette import status
 
-from project.crud import Postgres
+from project.crud import proxy as db_proxy
+from project.dependencies import get_settings, get_postgres_db
 from project.routers import final, intermediate, local
 from opendp.mod import enable_features
 
@@ -56,14 +57,19 @@ async def lifespan(_: FastAPI):
     # Enable features in OpenDP
     enable_features("contrib")
 
-    # Set up Postgres database to store results.
-    postgres = Postgres()
-    postgres.setup()
+    logger = logging.getLogger(__name__)
+
+    # Initialize the database proxy.
+    logger.info("Initializing connection to Postgres for storing tags and result metadata.")
+    db_proxy.initialize(get_postgres_db(get_settings()))
+    with db_proxy:
+        pass
+    logger.info(f"Connected to database at port {get_settings().postgres.port} to store tags and results.")
 
     yield
 
     # Close all connections to the database.
-    postgres.teardown()
+    db_proxy.close_all()
 
 
 def get_server_instance():

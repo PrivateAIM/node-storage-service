@@ -1,28 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: local-minio-deployment
+  name: local-seaweedfs-deployment
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: minio
+      app: seaweedfs
   template:
     metadata:
       labels:
-        app: minio
+        app: seaweedfs
     spec:
       containers:
-        - name: local-minio
-          image: bitnamilegacy/minio:2024.1.16
+        - name: local-seaweedfs
+          image: chrislusf/seaweedfs:4.39
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 9000
+            - containerPort: 8333
               name: http-s3
           env:
-            - name: MINIO_ROOT_USER
+            - name: AWS_ACCESS_KEY_ID
               value: admin
-            - name: MINIO_ROOT_PASSWORD
+            - name: AWS_SECRET_ACCESS_KEY
               value: s3cr3t_p4ssw0rd
-            - name: MINIO_DEFAULT_BUCKETS
+            - name: S3_BUCKET
               value: flame

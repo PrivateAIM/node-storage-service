@@ -1,0 +1,61 @@
+services:
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.39
+    environment:
+      AWS_ACCESS_KEY_ID: admin
+      AWS_SECRET_ACCESS_KEY: s3cr3t_p4ssw0rd
+      S3_BUCKET: flame
+    ports:
+      - "8333:8333"  # S3 API port
+      - "23646:23646"  # Admin UI
+
+  postgres:
+    image: postgres:17.2
+    environment:
+      POSTGRES_USER: flame
+      POSTGRES_PASSWORD: s3cr3t_p4ssw0rd
+      POSTGRES_DB: flame
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES__USER:-flame} -d $${POSTGRES__DB:-flame}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1.0
+    environment:
+      KC_BOOTSTRAP_ADMIN: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: s3cr3t_p4ssw0rd
+    command: ["start-dev", "--import-realm"]
+    volumes:
+      - ./docker/keycloak/import:/opt/keycloak/data/import
+    ports:
+      - "8080:8080"
+
+  migrate:
+    build: ..
+    entrypoint: [ "python" ]
+    command: [ "project/migrations/scripts/migrate.py" ]
+    environment:
+      POSTGRES__HOST: postgres
+      POSTGRES__USER: flame
+      POSTGRES__PASSWORD: s3cr3t_p4ssw0rd
+      POSTGRES__DB: flame
+      # These env vars aren't actually needed but need to be defined since they have no default.
+      HUB__AUTH__FLOW: password
+      HUB__AUTH__USERNAME: admin
+      HUB__AUTH__PASSWORD: start123
+      S3__ENDPOINT: seaweedfs:8333
+      S3__ACCESS_KEY: admin
+      S3__SECRET_KEY: s3cr3t_p4ssw0rd
+      S3__BUCKET: flame
+      OIDC__CERTS_URL: http://keycloak:8080/realms/flame/protocol/openid-connect/certs
+      CRYPTO__PROVIDER: file
+      CRYPTO__ECDH_PRIVATE_KEY_PATH: /
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: no
