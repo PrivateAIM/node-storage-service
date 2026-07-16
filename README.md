@@ -98,9 +98,9 @@ A [pre-generated keypair](tests/assets/keypair.pem) is used for this purpose.
 This allows all tests to generate valid JWTs as well as the service to validate them.
 The keypair is for development purposes only and should not be used in a productive setting.
 
-Some tests need to be run against live infrastructure.
+Some tests need a running FLAME Hub.
 To exclude these tests, append `-m "not live"` to the command above.
-Similarly, appending `-m live` will only run tests that need live infrastructure.
+Similarly, appending `-m live` will only run tests that need a Hub.
 
 The tests expect that client **and** password credentials are provided in order to test both authentication flows.
 Set `HUB__AUTH__FLOW` to `client`, but make sure to not only set `HUB__AUTH__ID` and `HUB__AUTH__SECRET`, but also
