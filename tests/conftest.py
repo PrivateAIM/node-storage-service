@@ -16,7 +16,7 @@ from jwcrypto import jwk
 from starlette.testclient import TestClient
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.wait_strategies import LogMessageWaitStrategy
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
 from minio import Minio
 
 from project.dependencies import get_postgres_db, get_local_s3, get_ecdh_private_key, get_node_id
