@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_private_key
 import flame_hub
-import httpx
+import httpx2 as httpx
 import peewee as pw
 import pytest
 import truststore

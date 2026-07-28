@@ -1,6 +1,6 @@
 import io
 
-from httpx import Response
+from httpx2 import Response
 
 
 def detail_of(r: Response) -> str:
@@ -13,5 +13,5 @@ def wrap_bytes_for_request(
     file_name: str = "upload.bin",
     content_type: str = "application/octet-stream",
 ):
-    """Wrap a bytes object into a dictionary s.t. it can be passed into a httpx request."""
+    """Wrap a bytes object into a dictionary s.t. it can be passed into a httpx2 request."""
     return {"file": (file_name, io.BytesIO(b), content_type)}

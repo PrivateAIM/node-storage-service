@@ -5,12 +5,12 @@ from functools import lru_cache
 from typing import Annotated
 
 import flame_hub.auth
-import httpx
+import httpx2 as httpx
 from playhouse.pool import PooledPostgresqlDatabase
 import truststore
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from httpx import HTTPError
+from httpx2 import HTTPError
 from jwcrypto import jwk, jwt, common
 from minio import Minio
 from starlette import status

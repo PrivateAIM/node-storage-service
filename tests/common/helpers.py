@@ -6,7 +6,7 @@ from typing import Callable
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-import httpx
+import httpx2 as httpx
 from starlette.testclient import TestClient
 
 from tests.common import env

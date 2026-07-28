@@ -1,7 +1,7 @@
 import pathlib
 import threading
 
-import httpx
+import httpx2 as httpx
 import peewee as pw
 import pytest
 
