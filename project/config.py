@@ -2,7 +2,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal, Annotated, Union
 
-from pydantic import BaseModel, HttpUrl, ConfigDict, Field, AnyHttpUrl
+from pydantic import BaseModel, HttpUrl, ConfigDict, Field, AnyHttpUrl, SecretStr, SecretBytes
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,7 +13,7 @@ class FrozenBaseModel(BaseModel):
 class S3Connection(FrozenBaseModel):
     endpoint: str
     access_key: str
-    secret_key: str
+    secret_key: SecretStr
     region: str = "us-east-1"
     use_ssl: bool = True
 
@@ -36,13 +36,13 @@ class AuthFlow(str, Enum):
 class PasswordAuthConfig(FrozenBaseModel):
     flow: Literal[AuthFlow.password]
     username: str
-    password: str
+    password: SecretStr
 
 
 class ClientAuthConfig(FrozenBaseModel):
     flow: Literal[AuthFlow.client]
     id: str
-    secret: str
+    secret: SecretStr
 
 
 class HubConfig(FrozenBaseModel):
@@ -55,7 +55,7 @@ class HubConfig(FrozenBaseModel):
 
 class PostgresConfig(FrozenBaseModel):
     host: str
-    password: str
+    password: SecretStr
     user: str
     db: str
     port: int = 5432
@@ -74,7 +74,7 @@ class CryptoProvider(str, Enum):
 
 class RawCryptoConfig(FrozenBaseModel):
     provider: Literal[CryptoProvider.raw]
-    ecdh_private_key: bytes
+    ecdh_private_key: SecretBytes
 
 
 class FileCryptoConfig(FrozenBaseModel):

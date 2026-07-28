@@ -61,7 +61,7 @@ def __create_s3_client_from_config(s3: S3BucketConfig):
     return Minio(
         s3.endpoint,
         access_key=s3.access_key,
-        secret_key=s3.secret_key,
+        secret_key=s3.secret_key.get_secret_value(),
         region=s3.region,
         secure=s3.use_ssl,
     )
@@ -167,14 +167,14 @@ def get_flame_hub_auth_flow(
     if settings.hub.auth.flow == AuthFlow.password:
         return flame_hub.auth.PasswordAuth(
             settings.hub.auth.username,
-            settings.hub.auth.password,
+            settings.hub.auth.password.get_secret_value(),
             client=httpx.Client(base_url=str(settings.hub.auth_base_url), verify=ssl_context, mounts=proxy_mounts),
         )
 
     if settings.hub.auth.flow == AuthFlow.client:
         return flame_hub.auth.ClientAuth(
             settings.hub.auth.id,
-            settings.hub.auth.secret,
+            settings.hub.auth.secret.get_secret_value(),
             client=httpx.Client(base_url=str(settings.hub.auth_base_url), verify=ssl_context, mounts=proxy_mounts),
         )
 
@@ -248,7 +248,7 @@ def get_postgres_db(
     return PooledPostgresqlDatabase(
         pg.db,
         user=pg.user,
-        password=pg.password,
+        password=pg.password.get_secret_value(),
         host=pg.host,
         port=pg.port,
         max_connections=pg.max_connections,
@@ -267,7 +267,7 @@ def get_ecdh_private_key_from_path(crypto_config: FileCryptoConfig):
 def get_ecdh_private_key_from_bytes(crypto_config: RawCryptoConfig):
     return crypto.load_ecdh_private_key(
         # replace literal newlines with real newlines (e.g. if provided via env variable)
-        crypto_config.ecdh_private_key.replace(b"\\n", b"\n")
+        crypto_config.ecdh_private_key.get_secret_value().replace(b"\\n", b"\n")
     )
 
 
