@@ -50,9 +50,6 @@ env = [
     "CHUNK_SIZE=64"
 ]
 addopts = "--cov=project --cov-branch"
-filterwarnings = [
-    "ignore:^The @wait_container_is_ready decorator:DeprecationWarning"
-]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
