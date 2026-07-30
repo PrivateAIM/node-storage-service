@@ -40,6 +40,11 @@ def use_testcontainers():
 
 
 @pytest.fixture(scope="package")
+def response_timeout():
+    return int(os.getenv("PYTEST__RESPONSE_TIMEOUT", "5"))
+
+
+@pytest.fixture(scope="package")
 def postgres(use_testcontainers):
     host = os.environ.get("POSTGRES__HOST")
     port = os.environ.get("POSTGRES__PORT", 5432)
@@ -223,23 +228,38 @@ def client_auth_client(ssl_context):
 
 
 @pytest.fixture(scope="package")
-def auth_client(password_auth_client, ssl_context):
+def auth_client(password_auth_client, ssl_context, response_timeout):
     return flame_hub.AuthClient(
-        client=httpx.Client(auth=password_auth_client, base_url=env.hub_auth_base_url(), verify=ssl_context)
+        client=httpx.Client(
+            auth=password_auth_client,
+            base_url=env.hub_auth_base_url(),
+            verify=ssl_context,
+            timeout=response_timeout,
+        )
     )
 
 
 @pytest.fixture(scope="package")
-def core_client(password_auth_client, ssl_context):
+def core_client(password_auth_client, ssl_context, response_timeout):
     return flame_hub.CoreClient(
-        client=httpx.Client(auth=password_auth_client, base_url=env.hub_core_base_url(), verify=ssl_context)
+        client=httpx.Client(
+            auth=password_auth_client,
+            base_url=env.hub_core_base_url(),
+            verify=ssl_context,
+            timeout=response_timeout,
+        )
     )
 
 
 @pytest.fixture(scope="package")
-def storage_client(password_auth_client, ssl_context):
+def storage_client(password_auth_client, ssl_context, response_timeout):
     return flame_hub.StorageClient(
-        client=httpx.Client(auth=password_auth_client, base_url=env.hub_storage_base_url(), verify=ssl_context)
+        client=httpx.Client(
+            auth=password_auth_client,
+            base_url=env.hub_storage_base_url(),
+            verify=ssl_context,
+            timeout=response_timeout,
+        )
     )
 
 
