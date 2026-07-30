@@ -12,6 +12,7 @@ from starlette import status
 from project.crud import proxy as db_proxy
 from project.dependencies import get_settings, get_postgres_db
 from project.routers import final, intermediate, local
+from project.version import __version__
 from opendp.mod import enable_features
 
 _app: FastAPI | None = None
@@ -117,10 +118,18 @@ def get_server_instance():
                 "name": "healthz",
                 "description": "Check whether the service is ready to process requests",
             },
+            {
+                "name": "info",
+                "description": "General info about this service",
+            },
         ],
     )
 
-    @_app.get("/healthz", summary="Check service readiness", operation_id="getHealth", tags=["healthz"])
+    @_app.get("/", operation_id="getInfo", tags=["info"], description="Get general info about this service")
+    async def info():
+        return {"version": __version__}
+
+    @_app.get("/healthz", operation_id="getHealth", tags=["healthz"], description="Check service readiness")
     async def do_healthcheck():
         """Check whether the service is ready to process requests. Responds with a 200 on success."""
         return {"status": "ok"}
