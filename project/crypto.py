@@ -18,16 +18,28 @@ AESGCM_APPENDED_TAG_BIT_SIZE = 128
 EllipticCurveKeyPair = tuple[ec.EllipticCurvePrivateKey, ec.EllipticCurvePublicKey]
 
 
-# we only do ec in this household
-# noinspection PyTypeChecker
+# We only do EC in this household!
+# --------------------------------
+
+
 def load_ecdh_public_key(public_key_bytes: bytes) -> ec.EllipticCurvePublicKey:
     """Load an ECDH public key from bytes."""
-    return serialization.load_pem_public_key(public_key_bytes)
+    key = serialization.load_pem_public_key(public_key_bytes)
+
+    if not isinstance(key, ec.EllipticCurvePublicKey):
+        raise TypeError("Expected an EC public key.")
+
+    return key
 
 
 def load_ecdh_private_key(private_key_bytes: bytes) -> ec.EllipticCurvePrivateKey:
     """Load an ECDH private key from bytes."""
-    return serialization.load_pem_private_key(private_key_bytes, password=None)
+    key = serialization.load_pem_private_key(private_key_bytes, password=None)
+
+    if not isinstance(key, ec.EllipticCurvePrivateKey):
+        raise TypeError("Expected an EC private key.")
+
+    return key
 
 
 def load_ecdh_public_key_from_path(public_key_path: Path):
