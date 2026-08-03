@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.ciphers import aead
 from project.config import Settings
 
 BITS_PER_BYTE = 8
-DEFAULT_IV_BIT_SIZE = 96
+DEFAULT_IV_BIT_SIZE = 96  # Read the comment inside random_iv() before changing this value.
 DEFAULT_SHARED_SECRET_BIT_SIZE = 256
 AESGCM_APPENDED_TAG_BIT_SIZE = 128
 
@@ -61,6 +61,9 @@ def load_ecdh_public_key_from_hex_string(hex_str: str):
 
 def random_iv():
     """Generate a random 12-byte initialization vector using `random.urandom`."""
+    # In theory generating an init vector for each chunk could lead to collisions which would break AES-GCM. In practice
+    # even for small chunk sizes (8KB) and a default iv bit size of 96 a file would need to have around 34TB for a
+    # collision to happen. It's sufficient to have a random init vector instead of a deterministic one per file.
     return os.urandom(DEFAULT_IV_BIT_SIZE // BITS_PER_BYTE)
 
 
