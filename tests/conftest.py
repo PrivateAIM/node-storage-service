@@ -229,44 +229,50 @@ def client_auth_client(ssl_context):
 
 @pytest.fixture(scope="package")
 def auth_client(password_auth_client, ssl_context, response_timeout):
-    return flame_hub.AuthClient(
-        client=httpx.Client(
-            auth=password_auth_client,
-            base_url=env.hub_auth_base_url(),
-            verify=ssl_context,
-            timeout=response_timeout,
-        )
+    client = httpx.Client(
+        auth=password_auth_client,
+        base_url=env.hub_auth_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
     )
+    try:
+        yield flame_hub.AuthClient(client=client)
+    finally:
+        client.close()
 
 
 @pytest.fixture(scope="package")
 def core_client(password_auth_client, ssl_context, response_timeout):
-    return flame_hub.CoreClient(
-        client=httpx.Client(
-            auth=password_auth_client,
-            base_url=env.hub_core_base_url(),
-            verify=ssl_context,
-            timeout=response_timeout,
-        )
+    client = httpx.Client(
+        auth=password_auth_client,
+        base_url=env.hub_core_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
     )
+    try:
+        yield flame_hub.CoreClient(client=client)
+    finally:
+        client.close()
 
 
 @pytest.fixture(scope="package")
 def storage_client(password_auth_client, ssl_context, response_timeout):
-    return flame_hub.StorageClient(
-        client=httpx.Client(
-            auth=password_auth_client,
-            base_url=env.hub_storage_base_url(),
-            verify=ssl_context,
-            timeout=response_timeout,
-        )
+    client = httpx.Client(
+        auth=password_auth_client,
+        base_url=env.hub_storage_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
     )
+    try:
+        yield flame_hub.StorageClient(client=client)
+    finally:
+        client.close()
 
 
 @pytest.fixture(scope="package")
 def master_image(core_client):
     preferred_base_image_name = os.environ.get("PYTEST__PREFERRED_BASE_MASTER_IMAGE", "python/base")
-    filter_ = {"virtual_path": preferred_base_image_name}
+    filter_ = {"virtualPath": preferred_base_image_name}
 
     if len(core_client.find_master_images(filter=filter_)) == 0:
         core_client.sync_master_images()
@@ -378,7 +384,7 @@ def analysis_id_factory(core_client, storage_client, project_id):
 
     for bucket_id in bucket_ids:
         # Delete all bucket files before deleting the bucket itself.
-        for bucket_file in storage_client.find_bucket_files(filter={"bucket_id": bucket_id}):
+        for bucket_file in storage_client.find_bucket_files(filter={"bucketId": bucket_id}):
             storage_client.delete_bucket_file(bucket_file.id)
         storage_client.delete_bucket(bucket_id)
         assert storage_client.get_bucket(bucket_id) is None

@@ -4,6 +4,7 @@ import uuid
 import pytest
 from starlette import status
 
+from project import crypto
 from project.dependencies import get_ecdh_private_key, get_core_client, get_storage_client
 from project.routers.intermediate import IntermediateUploadResponse
 from tests.common.auth import (
@@ -24,6 +25,7 @@ pytestmark = pytest.mark.live
 
 @pytest.mark.parametrize("blob", [random.Random().randbytes(16), random.Random().randbytes(128)])
 def test_200_encrypt_and_decrypt(
+    monkeypatch,
     test_client,
     core_client,
     storage_client,
@@ -32,6 +34,8 @@ def test_200_encrypt_and_decrypt(
     this_node,
     blob,
 ):
+    monkeypatch.setattr(crypto, "CHUNK_SIZE", 64)
+
     remote_node, remote_private_key = remote_node_and_private_key
     r = test_client.put(
         "/intermediate",
