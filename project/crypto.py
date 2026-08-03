@@ -8,12 +8,13 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import aead
 
-from project.config import Settings
-
 BITS_PER_BYTE = 8
 DEFAULT_IV_BIT_SIZE = 96  # Read the comment inside random_iv() before changing this value.
 DEFAULT_SHARED_SECRET_BIT_SIZE = 256
 AESGCM_APPENDED_TAG_BIT_SIZE = 128
+# TODO: Write the size of each chunk into the encryption stream, so that the decrypting node does not need to know the
+# TODO: size of the encrypted chunks.
+CHUNK_SIZE = 1_024 * 1_024  # ~1MB
 
 EllipticCurveKeyPair = tuple[ec.EllipticCurvePrivateKey, ec.EllipticCurvePublicKey]
 
@@ -144,11 +145,9 @@ class AESGCMEncryptingStream(io.RawIOBase):
         # Bytes are pre- and appended to a chunk while encrypting. To ensure the configured chunk size, the amount
         # of additional bytes is subtracted here. This depends heavily on the encryption algorithm.
         additional_bytes = (DEFAULT_IV_BIT_SIZE + AESGCM_APPENDED_TAG_BIT_SIZE) // BITS_PER_BYTE
-        chunk_size = Settings().chunk_size - additional_bytes
+        chunk_size = CHUNK_SIZE - additional_bytes
         if chunk_size <= 0:
-            raise ValueError(
-                f"The chunk size needs to be greater than {additional_bytes}, got {Settings().chunk_size}."
-            )
+            raise ValueError(f"The chunk size needs to be greater than {additional_bytes}, got {CHUNK_SIZE}.")
         return chunk_size
 
     def readable(self) -> bool:

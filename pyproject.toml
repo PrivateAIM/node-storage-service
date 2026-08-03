@@ -46,9 +46,6 @@ env_files = [
     ".env",
     ".env.test"
 ]
-env = [
-    "CHUNK_SIZE=64"
-]
 addopts = "--cov=project --cov-branch"
 
 [build-system]

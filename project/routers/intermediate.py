@@ -147,7 +147,7 @@ async def retrieve_intermediate_result_from_hub(
         )
 
     # Test decryption first to raise a proper error.
-    encrypted_chunk = next(storage_client.stream_bucket_file(object_id, chunk_size=settings.chunk_size))
+    encrypted_chunk = next(storage_client.stream_bucket_file(object_id, chunk_size=crypto.CHUNK_SIZE))
     remote_node_public_key = get_remote_node_public_key(core_client, remote_node_id)
     try:
         crypto.decrypt_default(private_key, remote_node_public_key, encrypted_chunk)
@@ -159,7 +159,7 @@ async def retrieve_intermediate_result_from_hub(
 
     async def _stream_file():
         try:
-            for chunk in storage_client.stream_bucket_file(object_id, chunk_size=settings.chunk_size):
+            for chunk in storage_client.stream_bucket_file(object_id, chunk_size=crypto.CHUNK_SIZE):
                 yield crypto.decrypt_default(private_key, remote_node_public_key, chunk)
         except InvalidTag:
             logger.exception(f"Failed to decrypt file with ID {object_id} while streaming.")
