@@ -229,38 +229,44 @@ def client_auth_client(ssl_context):
 
 @pytest.fixture(scope="package")
 def auth_client(password_auth_client, ssl_context, response_timeout):
-    return flame_hub.AuthClient(
-        client=httpx.Client(
-            auth=password_auth_client,
-            base_url=env.hub_auth_base_url(),
-            verify=ssl_context,
-            timeout=response_timeout,
-        )
+    client = httpx.Client(
+        auth=password_auth_client,
+        base_url=env.hub_auth_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
     )
+    try:
+        yield flame_hub.AuthClient(client=client)
+    finally:
+        client.close()
 
 
 @pytest.fixture(scope="package")
 def core_client(password_auth_client, ssl_context, response_timeout):
-    return flame_hub.CoreClient(
-        client=httpx.Client(
-            auth=password_auth_client,
-            base_url=env.hub_core_base_url(),
-            verify=ssl_context,
-            timeout=response_timeout,
-        )
+    client = httpx.Client(
+        auth=password_auth_client,
+        base_url=env.hub_core_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
     )
+    try:
+        yield flame_hub.CoreClient(client=client)
+    finally:
+        client.close()
 
 
 @pytest.fixture(scope="package")
 def storage_client(password_auth_client, ssl_context, response_timeout):
-    return flame_hub.StorageClient(
-        client=httpx.Client(
-            auth=password_auth_client,
-            base_url=env.hub_storage_base_url(),
-            verify=ssl_context,
-            timeout=response_timeout,
-        )
+    client = httpx.Client(
+        auth=password_auth_client,
+        base_url=env.hub_storage_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
     )
+    try:
+        yield flame_hub.StorageClient(client=client)
+    finally:
+        client.close()
 
 
 @pytest.fixture(scope="package")
