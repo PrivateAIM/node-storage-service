@@ -4,9 +4,10 @@ import os
 from pathlib import Path
 import typing as t
 
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import aead
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 BITS_PER_BYTE = 8
 DEFAULT_IV_BIT_SIZE = 96  # Read the comment inside random_iv() before changing this value.
@@ -78,7 +79,14 @@ def exchange_ecdh_shared_secret(
         raise ValueError("size of secret key must be either 256 or 384 bits")
 
     shared_secret = private_key.exchange(ec.ECDH(), public_key)
-    return shared_secret[: (bit_size // BITS_PER_BYTE)]
+    hash_algorithm = hashes.SHA256() if bit_size == 256 else hashes.SHA384()
+
+    return HKDF(
+        algorithm=hash_algorithm,
+        length=bit_size // BITS_PER_BYTE,
+        info=None,
+        salt=None,  # TODO: Use a salt here so that each file gets a distinct derived key.
+    ).derive(shared_secret)
 
 
 def encrypt_aesgcm(shared_secret: bytes, iv: bytes, data: bytes, associated_data: bytes = b""):
