@@ -266,7 +266,7 @@ def storage_client(password_auth_client, ssl_context, response_timeout):
 @pytest.fixture(scope="package")
 def master_image(core_client):
     preferred_base_image_name = os.environ.get("PYTEST__PREFERRED_BASE_MASTER_IMAGE", "python/base")
-    filter_ = {"virtual_path": preferred_base_image_name}
+    filter_ = {"virtualPath": preferred_base_image_name}
 
     if len(core_client.find_master_images(filter=filter_)) == 0:
         core_client.sync_master_images()
@@ -378,7 +378,7 @@ def analysis_id_factory(core_client, storage_client, project_id):
 
     for bucket_id in bucket_ids:
         # Delete all bucket files before deleting the bucket itself.
-        for bucket_file in storage_client.find_bucket_files(filter={"bucket_id": bucket_id}):
+        for bucket_file in storage_client.find_bucket_files(filter={"bucketId": bucket_id}):
             storage_client.delete_bucket_file(bucket_file.id)
         storage_client.delete_bucket(bucket_id)
         assert storage_client.get_bucket(bucket_id) is None
