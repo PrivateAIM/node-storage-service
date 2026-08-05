@@ -74,7 +74,7 @@ async def submit_intermediate_result_to_hub(
     Returns a 200 on success.
     This endpoint uploads the file and returns a link with which it can be retrieved."""
 
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysis_id": client_id, "type": "TEMP"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": client_id, "type": "TEMP"})
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(

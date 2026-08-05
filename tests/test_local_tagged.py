@@ -192,7 +192,8 @@ def test_404_get_results_by_tag(test_client):
     assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
 
 
-def test_200_delete_tagged_results(test_client, core_client, rng, s3, postgres):
+def test_200_delete_tagged_results(test_client, core_client_pwd_auth, rng, s3, postgres):
+    core_client = core_client_pwd_auth
     project = core_client.create_project(name=next_prefixed_name())
     analysis = core_client.create_analysis(project_id=project.id, name=next_prefixed_name())
 
@@ -327,7 +328,7 @@ def test_200_upload_local_file(
 
     assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
 
-    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id}).pop()
+    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysisId": analysis_id}).pop()
 
     assert analysis_bucket_file.path == filename
 

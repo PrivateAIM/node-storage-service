@@ -24,9 +24,14 @@ EllipticCurveKeyPair = tuple[ec.EllipticCurvePrivateKey, ec.EllipticCurvePublicK
 # --------------------------------
 
 
+def _transform_escaped_file_contents(b: bytes) -> bytes:
+    # Replace literal newlines with real newlines (e.g. if provided via env variable).
+    return b.replace(b"\\n", b"\n")
+
+
 def load_ecdh_public_key(public_key_bytes: bytes) -> ec.EllipticCurvePublicKey:
     """Load an ECDH public key from bytes."""
-    key = serialization.load_pem_public_key(public_key_bytes)
+    key = serialization.load_pem_public_key(_transform_escaped_file_contents(public_key_bytes))
 
     if not isinstance(key, ec.EllipticCurvePublicKey):
         raise TypeError("Expected an EC public key.")
@@ -36,7 +41,7 @@ def load_ecdh_public_key(public_key_bytes: bytes) -> ec.EllipticCurvePublicKey:
 
 def load_ecdh_private_key(private_key_bytes: bytes) -> ec.EllipticCurvePrivateKey:
     """Load an ECDH private key from bytes."""
-    key = serialization.load_pem_private_key(private_key_bytes, password=None)
+    key = serialization.load_pem_private_key(_transform_escaped_file_contents(private_key_bytes), password=None)
 
     if not isinstance(key, ec.EllipticCurvePrivateKey):
         raise TypeError("Expected an EC private key.")

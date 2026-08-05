@@ -43,11 +43,8 @@ The following table shows all available configuration options.
 | HUB__CORE_BASE_URL             | Base URL for the FLAME Core API                                                                 | https://core.privateaim.net       |                |
 | HUB__STORAGE_BASE_URL          | Base URL for the FLAME Storage API                                                              | https://storage.privateaim.net    |                |
 | HUB__AUTH_BASE_URL             | Base URL for the FLAME Auth API                                                                 | https://auth.privateaim.net       |                |
-| HUB__AUTH__FLOW                | Authentication flow to use for central FLAME services (`password` or `client`)                  |                                   |       x        |
-| HUB__AUTH__USERNAME            | Username to use for obtaining access tokens using password auth scheme                          |                                   | x<sup>1)</sup> |
-| HUB__AUTH__PASSWORD            | Password to use for obtaining access tokens using password auth scheme                          |                                   | x<sup>1)</sup> |
-| HUB__AUTH__ID                  | Client ID to use for obtaining access tokens using client credentials auth scheme               |                                   | x<sup>2)</sup> |
-| HUB__AUTH__SECRET              | Client secret to use for obtaining access tokens using client credentials auth scheme           |                                   | x<sup>2)</sup> |
+| HUB__AUTH__ID                  | Client ID to use for obtaining access tokens using client credentials auth scheme               |                                   |       x        |
+| HUB__AUTH__SECRET              | Client secret to use for obtaining access tokens using client credentials auth scheme           |                                   |       x        |
 | S3__ENDPOINT                   | S3 API endpoint (without scheme)                                                                |                                   |       x        |
 | S3__ACCESS_KEY                 | Access key for interacting with S3 API                                                          |                                   |       x        |
 | S3__SECRET_KEY                 | Secret key for interacting with S3 API                                                          |                                   |       x        |
@@ -61,25 +58,23 @@ The following table shows all available configuration options.
 | POSTGRES__USER                 | Username for access to Postgres instance for storing tags and result meta data                  |                                   |       x        |
 | POSTGRES__PASSWORD             | Password for access to Postgres instance for storing tags and result meta data                  |                                   |       x        |
 | POSTGRES__DB                   | Database of Postgres instance for storing tags and result meta data                             |                                   |       x        |
-| POSTGRES__MAX_CONNECTIONS      | Maximum number of connections for pooled Postgres instance                                      | 20                                |                |
+| POSTGRES__MAX_CONNECTIONS      | Maximum number of connections for pooled Postgres instance per worker                           | 20                                |                |
 | POSTGRES__STALE_TIMEOUT        | Number of seconds to allow connections to be used                                               | 300                               |                |
 | POSTGRES__KEEPALIVES_IDLE      | How long a connection needs to be idle before the first TCP keepalive probe is sent             | 60                                |                |
 | POSTGRES__KEEPALIVES_INTERVAL  | Time between successive TCP probes after the first one                                          | 30                                |                |
 | POSTGRES__KEEPALIVES_COUNT     | Number of failed TCP probes before declaring a connection dead                                  | 3                                 |                |
 | POSTGRES__MIGRATIONS_TABLENAME | Name of the table where peewee stores which migrations have been executed.                      | storage_service_migration_history |                |
 | CRYPTO__PROVIDER               | Provider for ECDH private key (`raw` or `file`)                                                 |                                   |       x        |
-| CRYPTO__ECDH_PRIVATE_KEY       | Contents of ECDH private key file                                                               |                                   | x<sup>3)</sup> |
-| CRYPTO__ECDH_PRIVATE_KEY_PATH  | Path to ECDH private key file                                                                   |                                   | x<sup>4)</sup> |
-| PROXY__HTTP_URL                | URL of HTTP proxy<sup>5)</sup>                                                                  |                                   |                |
-| PROXY__HTTPS_URL               | URL of HTTPS proxy<sup>5)</sup>                                                                 |                                   |                |
+| CRYPTO__ECDH_PRIVATE_KEY       | Contents of ECDH private key file                                                               |                                   | x<sup>1)</sup> |
+| CRYPTO__ECDH_PRIVATE_KEY_PATH  | Path to ECDH private key file                                                                   |                                   | x<sup>2)</sup> |
+| PROXY__HTTP_URL                | URL of HTTP proxy<sup>3)</sup>                                                                  |                                   |                |
+| PROXY__HTTPS_URL               | URL of HTTPS proxy<sup>3)</sup>                                                                 |                                   |                |
 | EXTRA_CA_CERTS                 | Path to a certificate bundle containing additional certificates to be added to the SSL context. |                                   |                |
 | HUB_ADAPTER_CLIENT_ID          | Keycloak client ID for the Hub Adapter client.                                                  | hub-adapter                       |                |
 
-<sup>1)</sup> Only if `HUB__AUTH__FLOW` is set to `password`  
-<sup>2)</sup> Only if `HUB__AUTH__FLOW` is set to `client`  
-<sup>3)</sup> Only if `CRYPTO__PROVIDER` is set to `raw`  
-<sup>4)</sup> Only if `CRYPTO__PROVIDER` is set to `file`  
-<sup>5)</sup> If only one of the two URLs is set, it will be used for both HTTP and HTTPS transport
+<sup>1)</sup> Only if `CRYPTO__PROVIDER` is set to `raw`  
+<sup>2)</sup> Only if `CRYPTO__PROVIDER` is set to `file`  
+<sup>3)</sup> If only one of the two URLs is set, it will be used for both HTTP and HTTPS transport
 
 ## Note on running tests
 
@@ -95,6 +90,9 @@ $ echo "PYTEST__USE_TESTCONTAINERS=1" >> .env.test
 You can then execute tests by running `pytest`.
 Pre-existing environment variables take precedence and will not be overwritten by the contents of `.env.test`.
 
+Since analyses can only be created by user accounts and analyses need to be created during tests, the environment
+variables `PYTEST__HUB_USER` and `PYTEST__HUB_USER_PASSWORD` need to be set.
+
 OIDC does not need to be configured, since an OIDC-compatible endpoint will be spawned alongside the tests that are
 being run.
 A [pre-generated keypair](tests/assets/keypair.pem) is used for this purpose.
@@ -104,10 +102,6 @@ The keypair is for development purposes only and should not be used in a product
 Some tests need a running FLAME Hub.
 To exclude these tests, append `-m "not live"` to the command above.
 Similarly, appending `-m live` will only run tests that need a Hub.
-
-The tests expect that client **and** password credentials are provided in order to test both authentication flows.
-Set `HUB__AUTH__FLOW` to `client`, but make sure to not only set `HUB__AUTH__ID` and `HUB__AUTH__SECRET`, but also
-`HUB__AUTH__USERNAME` and `HUB__AUTH__PASSWORD`.
 
 For testing against a forward proxy, [check the README in the `proxy` directory](./proxy/README.md).
 

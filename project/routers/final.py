@@ -53,7 +53,7 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
 
     noisy_file_content = str(noisy_value).encode("utf-8")
 
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysis_id": client_id, "type": "RESULT"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": client_id, "type": "RESULT"})
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(
@@ -95,7 +95,7 @@ async def submit_final_result_to_hub(
     """Upload a file as a final result to the FLAME Hub.
     Returns a 204 on success."""
     # fetch analysis bucket
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysis_id": client_id, "type": "RESULT"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": client_id, "type": "RESULT"})
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(

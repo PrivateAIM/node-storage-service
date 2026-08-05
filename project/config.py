@@ -28,19 +28,7 @@ class OIDCConfig(FrozenBaseModel):
     skip_jwt_validation: bool = False
 
 
-class AuthFlow(str, Enum):
-    password = "password"
-    client = "client"
-
-
-class PasswordAuthConfig(FrozenBaseModel):
-    flow: Literal[AuthFlow.password]
-    username: str
-    password: SecretStr
-
-
 class ClientAuthConfig(FrozenBaseModel):
-    flow: Literal[AuthFlow.client]
     id: str
     secret: SecretStr
 
@@ -50,7 +38,7 @@ class HubConfig(FrozenBaseModel):
     auth_base_url: HttpUrl = "https://auth.privateaim.net"
     storage_base_url: HttpUrl = "https://storage.privateaim.net"
 
-    auth: Annotated[Union[ClientAuthConfig, PasswordAuthConfig], Field(discriminator="flow")]
+    auth: ClientAuthConfig
 
 
 class PostgresConfig(FrozenBaseModel):

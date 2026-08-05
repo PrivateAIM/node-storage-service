@@ -1,83 +1,87 @@
 import json
 import logging
-import ssl
-from functools import lru_cache
 from typing import Annotated
+import uuid
 
-import flame_hub.auth
+from cryptography.hazmat.primitives.asymmetric import ec
+from flame_hub import CoreClient, StorageClient
 import httpx2 as httpx
 from playhouse.pool import PooledPostgresqlDatabase
-import truststore
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from httpx2 import HTTPError
 from jwcrypto import jwk, jwt, common
 from minio import Minio
 from starlette import status
 
-from project import crypto
-from project.config import (
-    Settings,
-    S3BucketConfig,
-    AuthFlow,
-    CryptoProvider,
-    FileCryptoConfig,
-    RawCryptoConfig,
-)
+from project.config import Settings
+from project.models import AppState
+
 
 security = HTTPBearer()
 logger = logging.getLogger(__name__)
 
 
-@lru_cache
-def get_settings():
-    return Settings()
+def get_app_state(request: Request) -> AppState:
+    return request.state.app_state
 
 
-def get_auth_jwks(settings: Annotated[Settings, Depends(get_settings)]):
+def get_settings(state: Annotated[AppState, Depends(get_app_state)]) -> Settings:
+    return state.settings
+
+
+def get_local_s3(state: Annotated[AppState, Depends(get_app_state)]) -> Minio:
+    return state.s3_client
+
+
+def get_core_client(state: Annotated[AppState, Depends(get_app_state)]) -> CoreClient:
+    return state.core_client
+
+
+def get_storage_client(state: Annotated[AppState, Depends(get_app_state)]) -> StorageClient:
+    return state.storage_client
+
+
+def get_node_id(state: Annotated[AppState, Depends(get_app_state)]) -> uuid.UUID:
+    return state.node_id
+
+
+def get_postgres_db(state: Annotated[AppState, Depends(get_app_state)]) -> PooledPostgresqlDatabase:
+    return state.postgres
+
+
+def get_ecdh_private_key(state: Annotated[AppState, Depends(get_app_state)]) -> ec.EllipticCurvePrivateKey:
+    return state.ecdh_private_key
+
+
+# TODO: It is not necessary to fetch JWKS on every request.
+async def get_auth_jwks(settings: Annotated[Settings, Depends(get_settings)]) -> jwk.JWKSet:
     if settings.oidc.skip_jwt_validation:
         logger.warning("Since JWT validation is skipped, an empty JWKS is returned")
         return jwk.JWKSet()
 
     jwks_url = str(settings.oidc.certs_url)
 
-    try:
-        r = httpx.get(jwks_url)
-        r.raise_for_status()
-    except HTTPError:
-        logger.exception("Failed to read OIDC config")
+    async with httpx.AsyncClient() as client:
+        try:
+            r = await client.get(jwks_url)
+            r.raise_for_status()
+        except HTTPError:
+            logger.exception("Failed to read OIDC config")
 
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Auth provider is unavailable",
-        )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Auth provider is unavailable",
+            )
 
-    jwks_payload = r.text
-
-    return jwk.JWKSet.from_json(jwks_payload)
-
-
-def __create_s3_client_from_config(s3: S3BucketConfig):
-    return Minio(
-        s3.endpoint,
-        access_key=s3.access_key,
-        secret_key=s3.secret_key.get_secret_value(),
-        region=s3.region,
-        secure=s3.use_ssl,
-    )
-
-
-def get_local_s3(
-    settings: Annotated[Settings, Depends(get_settings)],
-):
-    return __create_s3_client_from_config(settings.s3)
+    return jwk.JWKSet.from_json(r.text)
 
 
 def get_client_id(
     settings: Annotated[Settings, Depends(get_settings)],
     jwks: Annotated[jwk.JWKSet, Depends(get_auth_jwks)],
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-):
+) -> str:
     # TODO here be dragons!
     if settings.oidc.skip_jwt_validation:
         logger.warning("JWT validation is skipped, so JWT could be signed by an untrusted party or be expired")
@@ -113,170 +117,3 @@ def get_client_id(
     except (common.JWException, ValueError):
         logger.exception("Failed to deserialize JWT")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="JWT is malformed")
-
-
-@lru_cache
-def get_ssl_context(
-    settings: Annotated[Settings, Depends(get_settings)],
-):
-    # see https://www.python-httpx.org/advanced/ssl/#configuring-client-instances
-    ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    if settings.extra_ca_certs is not None:
-        ctx.load_verify_locations(cafile=settings.extra_ca_certs)
-    return ctx
-
-
-ProxyMount = dict[str, httpx.HTTPTransport] | None
-
-
-def get_proxy_mounts(
-    settings: Annotated[Settings, Depends(get_settings)],
-    ssl_context: Annotated[ssl.SSLContext, Depends(get_ssl_context)],
-):
-    proxy = settings.proxy
-    proxy_mounts = {}
-
-    http_proxy_set = proxy.http_url is not None
-    https_proxy_set = proxy.https_url is not None
-
-    if http_proxy_set and https_proxy_set:
-        # if two urls are provided, set them for each mode of transport individually
-        proxy_mounts["http://"] = httpx.HTTPTransport(proxy=str(proxy.http_url))
-        proxy_mounts["https://"] = httpx.HTTPTransport(proxy=str(proxy.https_url), verify=ssl_context)
-    elif not http_proxy_set and not https_proxy_set:
-        # if no urls are provided, do nothing
-        pass
-    else:
-        # if one url is provided, use it for both modes of transport
-        proxy_url = str(proxy.http_url) if http_proxy_set else str(proxy.https_url)
-
-        proxy_mounts["http://"] = httpx.HTTPTransport(proxy=proxy_url)
-        proxy_mounts["https://"] = httpx.HTTPTransport(proxy=proxy_url, verify=ssl_context)
-
-    if len(proxy_mounts) == 0:
-        return None
-
-    return proxy_mounts
-
-
-def get_flame_hub_auth_flow(
-    settings: Annotated[Settings, Depends(get_settings)],
-    ssl_context: Annotated[ssl.SSLContext, Depends(get_ssl_context)],
-    proxy_mounts: Annotated[ProxyMount, Depends(get_proxy_mounts)],
-):
-    if settings.hub.auth.flow == AuthFlow.password:
-        return flame_hub.auth.PasswordAuth(
-            settings.hub.auth.username,
-            settings.hub.auth.password.get_secret_value(),
-            client=httpx.Client(base_url=str(settings.hub.auth_base_url), verify=ssl_context, mounts=proxy_mounts),
-        )
-
-    if settings.hub.auth.flow == AuthFlow.client:
-        return flame_hub.auth.ClientAuth(
-            settings.hub.auth.id,
-            settings.hub.auth.secret.get_secret_value(),
-            client=httpx.Client(base_url=str(settings.hub.auth_base_url), verify=ssl_context, mounts=proxy_mounts),
-        )
-
-    raise NotImplementedError(f"unknown auth flow {settings.hub.auth.flow}")
-
-
-def get_core_client(
-    settings: Annotated[Settings, Depends(get_settings)],
-    auth_flow: Annotated[
-        flame_hub.auth.ClientAuth | flame_hub.auth.PasswordAuth,
-        Depends(get_flame_hub_auth_flow),
-    ],
-    ssl_context: Annotated[ssl.SSLContext, Depends(get_ssl_context)],
-    proxy_mounts: Annotated[ProxyMount, Depends(get_proxy_mounts)],
-):
-    return flame_hub.CoreClient(
-        client=httpx.Client(
-            base_url=str(settings.hub.core_base_url), auth=auth_flow, verify=ssl_context, mounts=proxy_mounts
-        )
-    )
-
-
-def get_storage_client(
-    settings: Annotated[Settings, Depends(get_settings)],
-    auth_flow: Annotated[
-        flame_hub.auth.ClientAuth | flame_hub.auth.PasswordAuth,
-        Depends(get_flame_hub_auth_flow),
-    ],
-    ssl_context: Annotated[ssl.SSLContext, Depends(get_ssl_context)],
-    proxy_mounts: Annotated[ProxyMount, Depends(get_proxy_mounts)],
-):
-    return flame_hub.StorageClient(
-        client=httpx.Client(
-            base_url=str(settings.hub.storage_base_url),
-            auth=auth_flow,
-            verify=ssl_context,
-            mounts=proxy_mounts,
-            timeout=90,
-        )
-    )
-
-
-def get_node_id(
-    settings: Annotated[Settings, Depends(get_settings)],
-    core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
-):
-    if settings.hub.auth.flow != AuthFlow.client:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="It's only possible to retrieve the id of this node if a client authentication flow is configured.",
-        )
-
-    client_id = settings.hub.auth.id
-    nodes = core_client.find_nodes(filter={"client_id": client_id})
-
-    if len(nodes) != 1:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Found {len(nodes)} nodes with the client id {client_id}.",
-        )
-
-    return nodes[0].id
-
-
-@lru_cache
-def get_postgres_db(
-    settings: Annotated[Settings, Depends(get_settings)],
-):
-    pg = settings.postgres
-
-    return PooledPostgresqlDatabase(
-        pg.db,
-        user=pg.user,
-        password=pg.password.get_secret_value(),
-        host=pg.host,
-        port=pg.port,
-        max_connections=pg.max_connections,
-        stale_timeout=pg.stale_timeout,
-        keepalives=1,
-        keepalives_idle=pg.keepalives_idle,
-        keepalives_interval=pg.keepalives_interval,
-        keepalives_count=pg.keepalives_count,
-    )
-
-
-def get_ecdh_private_key_from_path(crypto_config: FileCryptoConfig):
-    return crypto.load_ecdh_private_key_from_path(crypto_config.ecdh_private_key_path)
-
-
-def get_ecdh_private_key_from_bytes(crypto_config: RawCryptoConfig):
-    return crypto.load_ecdh_private_key(
-        # replace literal newlines with real newlines (e.g. if provided via env variable)
-        crypto_config.ecdh_private_key.get_secret_value().replace(b"\\n", b"\n")
-    )
-
-
-def get_ecdh_private_key(settings: Annotated[Settings, Depends(get_settings)]):
-    # settings enforce that either path or bytes are set
-    if settings.crypto.provider == CryptoProvider.raw:
-        return get_ecdh_private_key_from_bytes(settings.crypto)
-
-    if settings.crypto.provider == CryptoProvider.file:
-        return get_ecdh_private_key_from_path(settings.crypto)
-
-    raise NotImplementedError(f"unknown crypto provider {settings.crypto.provider}")

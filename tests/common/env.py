@@ -22,14 +22,6 @@ def hub_auth_base_url():
     return __get_env("HUB__AUTH_BASE_URL", "https://auth.privateaim.dev")
 
 
-def hub_password_auth_username():
-    return __get_env("HUB__AUTH__USERNAME")
-
-
-def hub_password_auth_password():
-    return __get_env("HUB__AUTH__PASSWORD")
-
-
 def hub_client_auth_id():
     return __get_env("HUB__AUTH__ID")
 

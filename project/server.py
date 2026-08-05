@@ -1,76 +1,167 @@
 import logging.config
 from contextlib import asynccontextmanager
-from pathlib import Path
+import ssl
+import uuid
 
-import flame_hub
+from cryptography.hazmat.primitives.asymmetric import ec
+from flame_hub import CoreClient, StorageClient, HubAPIError
+from flame_hub.auth import ClientAuth
 from fastapi import FastAPI, Request, HTTPException
+import httpx2 as httpx
+from minio import Minio
 import peewee as pw
 from psycopg2 import DatabaseError
-from pydantic import BaseModel
+from playhouse.pool import PooledPostgresqlDatabase
 from starlette import status
+import truststore
+from opendp.mod import enable_features
 
+from project import crypto
+from project.config import CryptoProvider, Settings
 from project.crud import proxy as db_proxy
-from project.dependencies import get_settings, get_postgres_db
+from project.models import AppState
 from project.routers import final, intermediate, local
 from project.version import __version__
-from opendp.mod import enable_features
+from project.utils import load_pyproject, load_readme
+
 
 _app: FastAPI | None = None
 
 
-class Author(BaseModel):
-    name: str
-    email: str | None = None
+def init_db(db: PooledPostgresqlDatabase | pw.PostgresqlDatabase) -> None:
+    db_proxy.initialize(db)
+    with db_proxy:  # This tests the database connection.
+        pass
 
 
-class Project(BaseModel):
-    version: str
-    description: str
-    authors: list[Author]
-    license: str
+def _build_ssl_context(s: Settings) -> ssl.SSLContext:
+    # See https://www.python-httpx.org/advanced/ssl/#configuring-client-instances.
+    ctx = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    if s.extra_ca_certs is not None:
+        ctx.load_verify_locations(cafile=s.extra_ca_certs)
+    return ctx
 
 
-class PyProject(BaseModel):
-    project: Project
+def _build_proxy_mounts(s: Settings, ssl_context: ssl.SSLContext) -> dict[str, httpx.HTTPTransport] | None:
+    proxy_mounts = {}
+    http_proxy_set = s.proxy.http_url is not None
+    https_proxy_set = s.proxy.https_url is not None
+
+    if http_proxy_set and https_proxy_set:
+        proxy_mounts["http://"] = httpx.HTTPTransport(proxy=str(s.proxy.http_url))
+        proxy_mounts["https://"] = httpx.HTTPTransport(proxy=str(s.proxy.https_url), verify=ssl_context)
+    elif http_proxy_set or https_proxy_set:
+        proxy_url = str(s.proxy.http_url) if http_proxy_set else str(s.proxy.https_url)
+        proxy_mounts["http://"] = httpx.HTTPTransport(proxy=proxy_url)
+        proxy_mounts["https://"] = httpx.HTTPTransport(proxy=proxy_url, verify=ssl_context)
+
+    return proxy_mounts or None
 
 
-def get_project_root():
-    return Path(__file__).parent.parent
+def _get_ecdh_private_key(s: Settings) -> ec.EllipticCurvePrivateKey:
+    # Settings enforce that either path or bytes are set.
+    if s.crypto.provider == CryptoProvider.raw:
+        return crypto.load_ecdh_private_key(s.crypto.ecdh_private_key.get_secret_value())
+
+    if s.crypto.provider == CryptoProvider.file:
+        return crypto.load_ecdh_private_key_from_path(s.crypto.ecdh_private_key_path)
+
+    raise NotImplementedError(f"Unknown crypto provider {s.crypto.provider}.")
 
 
-def load_pyproject():
-    import tomli
+def _get_node_id(s: Settings, core_client: CoreClient) -> uuid.UUID:
+    client_id = s.hub.auth.id
+    nodes = core_client.find_nodes(filter={"clientId": client_id})
 
-    with open(get_project_root() / "pyproject.toml", mode="rb") as f:
-        pyproject_data = tomli.load(f)
-        return PyProject(**pyproject_data)
+    if len(nodes) != 1:
+        raise RuntimeError(f"Found {len(nodes)} nodes with the client id {client_id}.")
 
-
-def load_readme():
-    with open(get_project_root() / "README.md", mode="r") as f:
-        return f.read()
+    return nodes[0].id
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    # Enable floating point features in OpenDP
-    enable_features("floating-point")
-    # Enable features in OpenDP
-    enable_features("contrib")
-
+async def lifespan(app: FastAPI):
     logger = logging.getLogger(__name__)
 
-    # Initialize the database proxy.
-    logger.info("Initializing connection to Postgres for storing tags and result metadata.")
-    db_proxy.initialize(get_postgres_db(get_settings()))
-    with db_proxy:
-        pass
-    logger.info(f"Connected to database at port {get_settings().postgres.port} to store tags and results.")
+    s = Settings()
+    logger.info("Successfully read and validated the configuration.")
+
+    ssl_context = _build_ssl_context(s)
+    # Generate new proxy mounts every time so that clients get fresh httpx2.HTTPTransport instances.
+    auth_flow_client = httpx.Client(
+        base_url=str(s.hub.auth_base_url),
+        verify=ssl_context,
+        mounts=_build_proxy_mounts(s, ssl_context),
+    )
+    auth = ClientAuth(s.hub.auth.id, s.hub.auth.secret.get_secret_value(), client=auth_flow_client)
+    core_client = CoreClient(
+        client=httpx.Client(
+            base_url=str(s.hub.core_base_url),
+            auth=auth,
+            verify=ssl_context,
+            mounts=_build_proxy_mounts(s, ssl_context),
+        )
+    )
+    storage_client = StorageClient(
+        client=httpx.Client(
+            base_url=str(s.hub.storage_base_url),
+            auth=auth,
+            verify=ssl_context,
+            mounts=_build_proxy_mounts(s, ssl_context),
+        )
+    )
+    logger.info("Successfully instantiated the core and storage client to communicate with the Hub.")
+
+    minio = Minio(
+        s.s3.endpoint,
+        access_key=s.s3.access_key,
+        secret_key=s.s3.secret_key.get_secret_value(),
+        region=s.s3.region,
+        secure=s.s3.use_ssl,
+    )
+    if not minio.bucket_exists(bucket_name=s.s3.bucket):
+        raise RuntimeError(f"Bucket '{s.s3.bucket}' does not exist.")
+    logger.info(f"Connected to S3 object storage under {s.s3.endpoint}.")
+
+    postgres = PooledPostgresqlDatabase(
+        s.postgres.db,
+        user=s.postgres.user,
+        password=s.postgres.password.get_secret_value(),
+        host=s.postgres.host,
+        port=s.postgres.port,
+        max_connections=s.postgres.max_connections,
+        stale_timeout=s.postgres.stale_timeout,
+        keepalives=1,
+        keepalives_idle=s.postgres.keepalives_idle,
+        keepalives_interval=s.postgres.keepalives_interval,
+        keepalives_count=s.postgres.keepalives_count,
+    )
+    init_db(postgres)
+    logger.info(f"Connected to database at port {s.postgres.port} to store tags and results.")
+
+    app.state.app_state = AppState(
+        settings=s,
+        core_client=core_client,
+        storage_client=storage_client,
+        ecdh_private_key=_get_ecdh_private_key(s),
+        node_id=_get_node_id(s, core_client),
+        s3_client=minio,
+        postgres=postgres,
+    )
+    logger.info("Building app state done.")
+
+    # Enable OpenDP features.
+    enable_features("floating-point")
+    enable_features("contrib")
+    logging.info("Enabled OpenDP's 'floating-point' and 'contrib' features.")
 
     yield
 
     # Close all connections to the database.
-    db_proxy.close_all()
+    postgres.close_all()
+    core_client.close()
+    storage_client.close()
+    logger.info("Successfully closed all database and client connections.")
 
 
 def get_server_instance():
@@ -135,8 +226,8 @@ def get_server_instance():
         return {"status": "ok"}
 
     # re-raise as an http exception
-    @_app.exception_handler(flame_hub.HubAPIError)
-    async def handle_hub_api_error(_: Request, exc: flame_hub.HubAPIError):
+    @_app.exception_handler(HubAPIError)
+    async def handle_hub_api_error(_: Request, exc: HubAPIError):
         remote_status_code = "unknown"
         if exc.error_response is not None:
             remote_status_code = exc.error_response.status_code

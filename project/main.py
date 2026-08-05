@@ -5,7 +5,9 @@ import pathlib
 
 import uvicorn
 
-from project.server import get_server_instance, get_project_root
+from project.server import get_server_instance
+from project.utils import get_project_root
+
 
 app = get_server_instance()
 

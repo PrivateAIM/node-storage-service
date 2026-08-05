@@ -45,7 +45,7 @@ def tag_object(
     project_id: uuid.UUID | str,
     client_id: str,
     object_id: uuid.UUID | str,
-    filename: str = None,
+    filename: str | None = None,
 ):
     if not is_valid_tag(tag):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid tag `{tag}`")

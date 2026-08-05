@@ -4,7 +4,15 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, ed448, dsa, x448
 import pytest
 
-from project.crypto import encrypt_default, decrypt_default, load_ecdh_public_key, load_ecdh_private_key
+from project.crypto import (
+    encrypt_default,
+    decrypt_default,
+    load_ecdh_public_key,
+    load_ecdh_private_key,
+    load_ecdh_public_key_from_path,
+    load_ecdh_private_key_from_path,
+)
+from tests.common.auth import get_test_ecdh_keypair_paths
 from tests.common.helpers import next_ecdh_keypair
 
 
@@ -71,3 +79,51 @@ def test_load_ecdh_public_key_type_error(private_key):
         load_ecdh_public_key(_get_public_key_in_pem_format(private_key))
 
     assert str(e.value) == "Expected an EC public key."
+
+
+def test_load_ecdh_private_key_from_path():
+    private_key_path, _ = get_test_ecdh_keypair_paths()
+
+    # Not interested in the results, just make sure it loads correctly.
+    load_ecdh_private_key_from_path(private_key_path)
+
+
+def test_load_ecdh_public_key_from_path():
+    _, public_key_path = get_test_ecdh_keypair_paths()
+
+    # Not interested in the results, just make sure it loads correctly.
+    load_ecdh_public_key_from_path(public_key_path)
+
+
+def test_load_ecdh_private_key_from_bytes():
+    private_key_path, _ = get_test_ecdh_keypair_paths()
+
+    with private_key_path.open("rb") as f:
+        private_key_bytes = f.read()
+
+    # Not interested in the results, just make sure it loads correctly.
+    load_ecdh_private_key(private_key_bytes)
+
+
+def test_load_ecdh_public_key_from_bytes():
+    _, public_key_path = get_test_ecdh_keypair_paths()
+
+    with public_key_path.open("rb") as f:
+        public_key_bytes = f.read()
+
+    # Not interested in the results, just make sure it loads correctly.
+    load_ecdh_public_key(public_key_bytes)
+
+
+def test_ecdh_keys_from_escaped_file_contents():
+    private_key_path, public_key_path = get_test_ecdh_keypair_paths()
+
+    with private_key_path.open("rb") as f:
+        private_key_file_contents = f.read().replace(b"\n", rb"\n")
+
+    with public_key_path.open("rb") as f:
+        public_key_file_contents = f.read().replace(b"\n", rb"\n")
+
+    # Not interested in the results, just make sure it loads correctly.
+    load_ecdh_private_key(private_key_file_contents)
+    load_ecdh_public_key(public_key_file_contents)
