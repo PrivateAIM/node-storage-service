@@ -23,8 +23,7 @@ $ git clone https://github.com/PrivateAIM/node-storage-service.git
 $ cd node-storage-service
 $ poetry install
 $ cp .env.example .env
-$ poetry shell
-$ flame-storage
+$ poetry run flame-storage
 ```
 
 To run an ephemeral version of the Node Storage Service with all services it needs pre-configured,
