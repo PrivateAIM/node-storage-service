@@ -29,9 +29,9 @@ def init_router() -> t.Iterator[Router]:
         host=s.postgres.host,
         port=s.postgres.port,
     )
-    init_db(db)
 
     try:
+        init_db(db)
         yield Router(
             db,
             migrate_dir=get_project_root() / "project" / "migrations",
