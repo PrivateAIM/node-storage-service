@@ -1,11 +1,9 @@
 import pathlib
 import threading
 
-import httpx
-import peewee as pw
+import httpx2 as httpx
 import pytest
 
-from project import crud
 from project.main import openapi_spec, config_server
 from tests.common.helpers import next_random_string, eventually
 
@@ -32,9 +30,7 @@ def test_openapi_spec_wrong_file(monkeypatch):
 def test_run_server(monkeypatch):
     host, port = "127.0.0.1", 8001
     server = config_server(host=host, port=port)
-
-    # Reset proxy in case it was already initialized.
-    monkeypatch.setattr(crud, "proxy", pw.DatabaseProxy())
+    server.config.lifespan = "off"
 
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()

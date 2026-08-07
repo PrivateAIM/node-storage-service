@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_private_key
 import flame_hub
-import httpx
+import httpx2 as httpx
 import peewee as pw
 import pytest
 import truststore
@@ -16,12 +16,22 @@ from jwcrypto import jwk
 from starlette.testclient import TestClient
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.wait_strategies import LogMessageWaitStrategy
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
 from minio import Minio
+from opendp.mod import enable_features
 
-from project.dependencies import get_postgres_db, get_local_s3, get_ecdh_private_key, get_node_id
+from project.config import Settings
+from project.dependencies import (
+    get_postgres_db,
+    get_local_s3,
+    get_ecdh_private_key,
+    get_node_id,
+    get_core_client,
+    get_storage_client,
+    get_settings,
+)
 from project.migrations.scripts.router import init_router
-from project.server import get_server_instance
+from project.server import get_server_instance, init_db
 from tests.common import env
 from tests.common.auth import get_oid_test_jwk, get_test_ecdh_keypair
 from tests.common.helpers import (
@@ -37,6 +47,11 @@ from tests.common.helpers import (
 @pytest.fixture(scope="package")
 def use_testcontainers():
     return os.environ.get("PYTEST__USE_TESTCONTAINERS", "0") == "1"
+
+
+@pytest.fixture(scope="package")
+def response_timeout():
+    return int(os.getenv("PYTEST__RESPONSE_TIMEOUT", "5"))
 
 
 @pytest.fixture(scope="package")
@@ -61,14 +76,18 @@ def postgres(use_testcontainers):
         host = postgres_container.get_container_host_ip()
         port = postgres_container.get_exposed_port(5432)
 
-        # Set env vars here because get_postgres_db is called directly during the lifespan.
+        # Update env vars to the host and port of the testcontainer.
         os.environ["POSTGRES__HOST"] = host
         os.environ["POSTGRES__PORT"] = str(port)
 
     postgres = pw.PostgresqlDatabase(dbname, user=user, password=password, host=host, port=port)
 
     # Execute database migrations.
-    init_router().run()
+    with init_router() as router:
+        router.run()
+
+    # Initialize database here since the lifespan method is not executed.
+    init_db(postgres)
 
     yield postgres
 
@@ -103,9 +122,9 @@ def s3(use_testcontainers):
         seaweedfs = DockerContainer(
             image="chrislusf/seaweedfs:4.39",
             env={
-                "AWS_ACCESS_KEY_ID": "admin",
-                "AWS_SECRET_ACCESS_KEY": "s3cr3t_p4ssw0rd",
-                "S3_BUCKET": "flame",
+                "AWS_ACCESS_KEY_ID": access_key,
+                "AWS_SECRET_ACCESS_KEY": secret_key,
+                "S3_BUCKET": bucket,
             },
             ports=[8333],
         ).waiting_for(LogMessageWaitStrategy("All enabled components are running and ready to use"))
@@ -113,6 +132,9 @@ def s3(use_testcontainers):
 
         endpoint = f"{seaweedfs.get_container_host_ip()}:{seaweedfs.get_exposed_port(8333)}"
         secure = False
+
+        # Update env var to the endpoint of the testcontainer.
+        os.environ["S3__ENDPOINT"] = endpoint
 
     s3 = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=secure, region=region)
 
@@ -122,6 +144,118 @@ def s3(use_testcontainers):
 
     if use_testcontainers:
         seaweedfs.stop()
+
+
+@pytest.fixture(scope="package")
+def ssl_context():
+    return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
+
+@pytest.fixture(scope="package")
+def client_auth_client(ssl_context):
+    client = httpx.Client(base_url=env.hub_auth_base_url(), verify=ssl_context)
+    try:
+        yield flame_hub.auth.ClientAuth(
+            env.hub_client_auth_id(),
+            env.hub_client_auth_secret(),
+            client=client,
+        )
+    finally:
+        client.close()
+
+
+@pytest.fixture(scope="package")
+def password_auth_client(ssl_context):
+    client = httpx.Client(base_url=env.hub_auth_base_url(), verify=ssl_context)
+    try:
+        yield flame_hub.auth.PasswordAuth(
+            username=os.getenv("PYTEST__HUB_USER", "admin"),
+            password=os.getenv("PYTEST__HUB_USER_PASSWORD", "start123"),
+            client=client,
+        )
+    finally:
+        client.close()
+
+
+@pytest.fixture(scope="package")
+def auth_client(client_auth_client, ssl_context, response_timeout):
+    client = httpx.Client(
+        auth=client_auth_client,
+        base_url=env.hub_auth_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
+    )
+    try:
+        yield flame_hub.AuthClient(client=client)
+    finally:
+        client.close()
+
+
+@pytest.fixture(scope="package")
+def core_client(client_auth_client, ssl_context, response_timeout):
+    client = httpx.Client(
+        auth=client_auth_client,
+        base_url=env.hub_core_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
+    )
+    try:
+        yield flame_hub.CoreClient(client=client)
+    finally:
+        client.close()
+
+
+@pytest.fixture(scope="package")
+def core_client_pwd_auth(password_auth_client, ssl_context, response_timeout):
+    client = httpx.Client(
+        auth=password_auth_client,
+        base_url=env.hub_core_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
+    )
+    try:
+        yield flame_hub.CoreClient(client=client)
+    finally:
+        client.close()
+
+
+@pytest.fixture(scope="package")
+def storage_client(client_auth_client, ssl_context, response_timeout):
+    client = httpx.Client(
+        auth=client_auth_client,
+        base_url=env.hub_storage_base_url(),
+        verify=ssl_context,
+        timeout=response_timeout,
+    )
+    try:
+        yield flame_hub.StorageClient(client=client)
+    finally:
+        client.close()
+
+
+@pytest.fixture(scope="package")
+def override_settings():
+    # At this point, settings also picks up the hosts and ports of possible testcontainers.
+    def _get_settings():
+        return Settings()
+
+    yield _get_settings
+
+
+@pytest.fixture(scope="package")
+def override_core_client(core_client):
+    def _get_core_client():
+        return core_client
+
+    yield _get_core_client
+
+
+@pytest.fixture(scope="package")
+def override_storage_client(storage_client):
+    def _get_storage_client():
+        return storage_client
+
+    yield _get_storage_client
 
 
 @pytest.fixture(scope="package")
@@ -146,9 +280,15 @@ def override_ecdh_private_key():
     yield _get_ecdh_private_key
 
 
-# noinspection PyUnresolvedReferences
 @pytest.fixture(scope="package")
-def test_app(override_s3, override_postgres, override_ecdh_private_key):
+def test_app(
+    override_settings,
+    override_s3,
+    override_postgres,
+    override_ecdh_private_key,
+    override_core_client,
+    override_storage_client,
+):
     app = get_server_instance()
 
     if callable(override_postgres):
@@ -157,17 +297,20 @@ def test_app(override_s3, override_postgres, override_ecdh_private_key):
     if callable(override_s3):
         app.dependency_overrides[get_local_s3] = override_s3
 
+    app.dependency_overrides[get_settings] = override_settings
     app.dependency_overrides[get_ecdh_private_key] = override_ecdh_private_key
+    app.dependency_overrides[get_core_client] = override_core_client
+    app.dependency_overrides[get_storage_client] = override_storage_client
 
     return app
 
 
 @pytest.fixture(scope="package")
 def test_client(test_app):
+    enable_features("floating-point")
+    enable_features("contrib")
     # see https://fastapi.tiangolo.com/advanced/testing-events/
-    # This is to ensure that the lifespan events are called.
-    with TestClient(test_app) as test_client:
-        yield test_client
+    return TestClient(test_app)
 
 
 @pytest.fixture(scope="package", autouse=True)
@@ -200,53 +343,9 @@ def rng():
 
 
 @pytest.fixture(scope="package")
-def ssl_context():
-    return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-
-
-@pytest.fixture(scope="package")
-def password_auth_client(ssl_context):
-    return flame_hub.auth.PasswordAuth(
-        env.hub_password_auth_username(),
-        env.hub_password_auth_password(),
-        client=httpx.Client(base_url=env.hub_auth_base_url(), verify=ssl_context),
-    )
-
-
-@pytest.fixture(scope="package")
-def client_auth_client(ssl_context):
-    return flame_hub.auth.ClientAuth(
-        env.hub_client_auth_id(),
-        env.hub_client_auth_secret(),
-        client=httpx.Client(base_url=env.hub_auth_base_url(), verify=ssl_context),
-    )
-
-
-@pytest.fixture(scope="package")
-def auth_client(password_auth_client, ssl_context):
-    return flame_hub.AuthClient(
-        client=httpx.Client(auth=password_auth_client, base_url=env.hub_auth_base_url(), verify=ssl_context)
-    )
-
-
-@pytest.fixture(scope="package")
-def core_client(password_auth_client, ssl_context):
-    return flame_hub.CoreClient(
-        client=httpx.Client(auth=password_auth_client, base_url=env.hub_core_base_url(), verify=ssl_context)
-    )
-
-
-@pytest.fixture(scope="package")
-def storage_client(password_auth_client, ssl_context):
-    return flame_hub.StorageClient(
-        client=httpx.Client(auth=password_auth_client, base_url=env.hub_storage_base_url(), verify=ssl_context)
-    )
-
-
-@pytest.fixture(scope="package")
 def master_image(core_client):
     preferred_base_image_name = os.environ.get("PYTEST__PREFERRED_BASE_MASTER_IMAGE", "python/base")
-    filter_ = {"virtual_path": preferred_base_image_name}
+    filter_ = {"virtualPath": preferred_base_image_name}
 
     if len(core_client.find_master_images(filter=filter_)) == 0:
         core_client.sync_master_images()
@@ -260,7 +359,8 @@ def master_image(core_client):
 
 
 @pytest.fixture
-def project_id_factory(core_client, master_image):
+def project_id_factory(core_client_pwd_auth, master_image):
+    core_client = core_client_pwd_auth
     project_ids = []
 
     def _factory():
@@ -304,7 +404,8 @@ def project_id(project_id_factory):
 
 
 @pytest.fixture
-def analysis_id_factory(core_client, storage_client, project_id):
+def analysis_id_factory(core_client_pwd_auth, storage_client, project_id):
+    core_client = core_client_pwd_auth
     analysis_ids, bucket_ids, analysis_bucket_ids = [], [], []
 
     def _factory(_project_id=project_id):
@@ -358,7 +459,7 @@ def analysis_id_factory(core_client, storage_client, project_id):
 
     for bucket_id in bucket_ids:
         # Delete all bucket files before deleting the bucket itself.
-        for bucket_file in storage_client.find_bucket_files(filter={"bucket_id": bucket_id}):
+        for bucket_file in storage_client.find_bucket_files(filter={"bucketId": bucket_id}):
             storage_client.delete_bucket_file(bucket_file.id)
         storage_client.delete_bucket(bucket_id)
         assert storage_client.get_bucket(bucket_id) is None

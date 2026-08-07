@@ -3,23 +3,23 @@ import uuid
 from typing import Annotated
 
 import flame_hub
+from flame_hub.types import UploadFile as StorageClientUploadFile
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import APIRouter, UploadFile, Depends, HTTPException, File, Form
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, HttpUrl
 from starlette import status
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
 from project import crypto
-from project.config import Settings
 from project.dependencies import (
     get_client_id,
     get_core_client,
     get_storage_client,
     get_ecdh_private_key,
     get_node_id,
-    get_settings,
 )
 
 router = APIRouter()
@@ -74,7 +74,7 @@ async def submit_intermediate_result_to_hub(
     Returns a 200 on success.
     This endpoint uploads the file and returns a link with which it can be retrieved."""
 
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysis_id": client_id, "type": "TEMP"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": client_id, "type": "TEMP"})
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(
@@ -87,17 +87,18 @@ async def submit_intermediate_result_to_hub(
     # Get the public key of the remote node via the Hub.
     remote_public_key = get_remote_node_public_key(core_client, remote_node_id)
 
-    bucket_file_lst = storage_client.upload_to_bucket(
+    bucket_file_lst = await run_in_threadpool(
+        storage_client.upload_to_bucket,
         analysis_bucket.bucket_id,
-        {
-            "file_name": file.filename,
-            "content": crypto.AESGCMEncryptingStream(
+        StorageClientUploadFile(
+            file_name=file.filename,
+            content=crypto.AESGCMEncryptingStream(
                 file=file.file,
                 private_key=private_key,
                 remote_public_key=remote_public_key,
             ),
-            "content_type": file.content_type or "application/octet-stream",
-        },
+            content_type=file.content_type or "application/octet-stream",
+        ),
     )
 
     if len(bucket_file_lst) != 1:
@@ -137,7 +138,6 @@ async def retrieve_intermediate_result_from_hub(
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
     private_key: Annotated[ec.EllipticCurvePrivateKey, Depends(get_ecdh_private_key)],
-    settings: Annotated[Settings, Depends(get_settings)],
 ):
     """Get an intermediate result as file from the FLAME Hub."""
     if storage_client.get_bucket_file(object_id) is None:
@@ -147,7 +147,7 @@ async def retrieve_intermediate_result_from_hub(
         )
 
     # Test decryption first to raise a proper error.
-    encrypted_chunk = next(storage_client.stream_bucket_file(object_id, chunk_size=settings.chunk_size))
+    encrypted_chunk = next(storage_client.stream_bucket_file(object_id, chunk_size=crypto.CHUNK_SIZE))
     remote_node_public_key = get_remote_node_public_key(core_client, remote_node_id)
     try:
         crypto.decrypt_default(private_key, remote_node_public_key, encrypted_chunk)
@@ -157,9 +157,10 @@ async def retrieve_intermediate_result_from_hub(
             detail=f"Failed to decrypt file with ID {object_id} which was encrypted by node {remote_node_id}.",
         )
 
-    async def _stream_file():
+    # This is sync because then StreamingResponse will automatically run it in a thread pool.
+    def _stream_file():
         try:
-            for chunk in storage_client.stream_bucket_file(object_id, chunk_size=settings.chunk_size):
+            for chunk in storage_client.stream_bucket_file(object_id, chunk_size=crypto.CHUNK_SIZE):
                 yield crypto.decrypt_default(private_key, remote_node_public_key, chunk)
         except InvalidTag:
             logger.exception(f"Failed to decrypt file with ID {object_id} while streaming.")

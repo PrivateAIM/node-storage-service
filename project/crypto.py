@@ -4,30 +4,49 @@ import os
 from pathlib import Path
 import typing as t
 
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import aead
-
-from project.config import Settings
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 BITS_PER_BYTE = 8
-DEFAULT_IV_BIT_SIZE = 96
+DEFAULT_IV_BIT_SIZE = 96  # Read the comment inside random_iv() before changing this value.
 DEFAULT_SHARED_SECRET_BIT_SIZE = 256
 AESGCM_APPENDED_TAG_BIT_SIZE = 128
+# TODO: Write the size of each chunk into the encryption stream, so that the decrypting node does not need to know the
+# TODO: size of the encrypted chunks.
+CHUNK_SIZE = 1_024 * 1_024  # ~1MB
 
 EllipticCurveKeyPair = tuple[ec.EllipticCurvePrivateKey, ec.EllipticCurvePublicKey]
 
 
-# we only do ec in this household
-# noinspection PyTypeChecker
+# We only do EC in this household!
+# --------------------------------
+
+
+def _transform_escaped_file_contents(b: bytes) -> bytes:
+    # Replace literal newlines with real newlines (e.g. if provided via env variable).
+    return b.replace(b"\\n", b"\n")
+
+
 def load_ecdh_public_key(public_key_bytes: bytes) -> ec.EllipticCurvePublicKey:
     """Load an ECDH public key from bytes."""
-    return serialization.load_pem_public_key(public_key_bytes)
+    key = serialization.load_pem_public_key(_transform_escaped_file_contents(public_key_bytes))
+
+    if not isinstance(key, ec.EllipticCurvePublicKey):
+        raise TypeError("Expected an EC public key.")
+
+    return key
 
 
 def load_ecdh_private_key(private_key_bytes: bytes) -> ec.EllipticCurvePrivateKey:
     """Load an ECDH private key from bytes."""
-    return serialization.load_pem_private_key(private_key_bytes, password=None)
+    key = serialization.load_pem_private_key(_transform_escaped_file_contents(private_key_bytes), password=None)
+
+    if not isinstance(key, ec.EllipticCurvePrivateKey):
+        raise TypeError("Expected an EC private key.")
+
+    return key
 
 
 def load_ecdh_public_key_from_path(public_key_path: Path):
@@ -49,6 +68,9 @@ def load_ecdh_public_key_from_hex_string(hex_str: str):
 
 def random_iv():
     """Generate a random 12-byte initialization vector using `random.urandom`."""
+    # In theory generating an init vector for each chunk could lead to collisions which would break AES-GCM. In practice
+    # even for small chunk sizes (8KB) and a default iv bit size of 96 a file would need to have around 34TB for a
+    # collision to happen. It's sufficient to have a random init vector instead of a deterministic one per file.
     return os.urandom(DEFAULT_IV_BIT_SIZE // BITS_PER_BYTE)
 
 
@@ -62,7 +84,14 @@ def exchange_ecdh_shared_secret(
         raise ValueError("size of secret key must be either 256 or 384 bits")
 
     shared_secret = private_key.exchange(ec.ECDH(), public_key)
-    return shared_secret[: (bit_size // BITS_PER_BYTE)]
+    hash_algorithm = hashes.SHA256() if bit_size == 256 else hashes.SHA384()
+
+    return HKDF(
+        algorithm=hash_algorithm,
+        length=bit_size // BITS_PER_BYTE,
+        info=None,
+        salt=None,  # TODO: Use a salt here so that each file gets a distinct derived key.
+    ).derive(shared_secret)
 
 
 def encrypt_aesgcm(shared_secret: bytes, iv: bytes, data: bytes, associated_data: bytes = b""):
@@ -129,11 +158,9 @@ class AESGCMEncryptingStream(io.RawIOBase):
         # Bytes are pre- and appended to a chunk while encrypting. To ensure the configured chunk size, the amount
         # of additional bytes is subtracted here. This depends heavily on the encryption algorithm.
         additional_bytes = (DEFAULT_IV_BIT_SIZE + AESGCM_APPENDED_TAG_BIT_SIZE) // BITS_PER_BYTE
-        chunk_size = Settings().chunk_size - additional_bytes
+        chunk_size = CHUNK_SIZE - additional_bytes
         if chunk_size <= 0:
-            raise ValueError(
-                f"The chunk size needs to be greater than {additional_bytes}, got {Settings().chunk_size}."
-            )
+            raise ValueError(f"The chunk size needs to be greater than {additional_bytes}, got {CHUNK_SIZE}.")
         return chunk_size
 
     def readable(self) -> bool:

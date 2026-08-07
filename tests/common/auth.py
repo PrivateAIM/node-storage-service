@@ -6,7 +6,6 @@ from typing import Any
 from uuid import UUID
 
 import httpx2
-from httpx import Request
 from jwcrypto import jwk, jwt
 
 from project import crypto
@@ -85,6 +84,6 @@ class BearerAuth(httpx2.Auth):
     def __init__(self, token: str):
         self.__token = token
 
-    def auth_flow(self, request: Request):
+    def auth_flow(self, request: httpx2.Request):
         request.headers["Authorization"] = f"Bearer {self.__token}"
         yield request

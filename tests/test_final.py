@@ -36,7 +36,7 @@ def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client,
     assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
 
     # Get most recent.
-    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id}).pop()
+    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysisId": analysis_id}).pop()
     # Retrieve content.
     result_file_content = next(storage_client.stream_bucket_file(analysis_bucket_file.bucket_file_id))
     noisy_value = float(result_file_content.decode("utf-8"))
@@ -128,7 +128,7 @@ def test_200_submit_to_upload(test_client, rng, core_client, storage_client, ana
     assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
 
     # Get most recent.
-    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id}).pop()
+    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysisId": analysis_id}).pop()
     # Retrieve content.
     result_file_content = next(storage_client.stream_bucket_file(analysis_bucket_file.bucket_file_id))
 

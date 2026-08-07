@@ -8,6 +8,7 @@ import flame_hub
 import peewee as pw
 from playhouse.pool import PooledPostgresqlDatabase
 from fastapi import Depends, UploadFile, APIRouter, HTTPException, File, Form
+from fastapi.concurrency import run_in_threadpool
 from cryptography.hazmat.primitives.asymmetric import ec
 from minio import Minio, S3Error
 from pydantic import BaseModel, HttpUrl, Field
@@ -45,7 +46,7 @@ def tag_object(
     project_id: uuid.UUID | str,
     client_id: str,
     object_id: uuid.UUID | str,
-    filename: str = None,
+    filename: str | None = None,
 ):
     if not is_valid_tag(tag):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid tag `{tag}`")
@@ -162,9 +163,10 @@ async def submit_intermediate_result_to_local(
             tag=tag, db=db, project_id=project_id, client_id=client_id, object_id=object_id, filename=file.filename
         )
 
-    s3.put_object(
-        settings.s3.bucket,
-        object_name,
+    await run_in_threadpool(
+        s3.put_object,
+        bucket_name=settings.s3.bucket,
+        object_name=object_name,
         data=file.file,
         length=file.size,
         content_type=file.content_type or "application/octet-stream",
@@ -179,6 +181,22 @@ async def submit_intermediate_result_to_local(
             )
         ),
     )
+
+
+def _delete_project_from_s3(
+    s3: Minio,
+    settings: Settings,
+    project_id: str,
+) -> list[str]:
+    object_ids = []
+    for object_ in s3.list_objects(settings.s3.bucket, prefix=f"local/{project_id}/", recursive=True):
+        s3.remove_object(settings.s3.bucket, object_.object_name)
+        object_ids.append(object_.object_name.split("/")[-1])
+
+    # Delete the project directory.
+    s3.remove_object(settings.s3.bucket, f"local/{project_id}/")
+
+    return object_ids
 
 
 @router.delete(
@@ -211,16 +229,15 @@ async def delete_local_results(
             detail=f"Project '{project_id}' will not be deleted because it is still available on the Hub.",
         )
 
-    object_ids = []
-    for object_ in s3.list_objects(settings.s3.bucket, prefix=f"local/{project_id}/", recursive=True):
-        s3.remove_object(settings.s3.bucket, object_.object_name)
-        object_ids.append(object_.object_name.split("/")[-1])
-
-    # Delete the project directory.
-    s3.remove_object(settings.s3.bucket, f"local/{project_id}/")
+    deleted_object_ids = await run_in_threadpool(
+        _delete_project_from_s3,
+        s3=s3,
+        settings=settings,
+        project_id=project_id,
+    )
 
     with db.atomic():
-        crud.Result.delete().where(crud.Result.object_id.in_(object_ids)).execute()
+        crud.Result.delete().where(crud.Result.object_id.in_(deleted_object_ids)).execute()
         crud.Tag.delete().where(crud.Tag.project_id == project_id).execute()
 
 
@@ -285,9 +302,16 @@ async def create_object_tag(
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
     # Check if an object with that ID exists and properly release the connection afterward.
-    r = _get_object_from_s3(s3, settings, project_id, object_id, client_id)
-    r.close()
-    r.release_conn()
+    s3_response = await run_in_threadpool(
+        _get_object_from_s3,
+        s3=s3,
+        settings=settings,
+        project_id=project_id,
+        object_id=object_id,
+        client_id=client_id,
+    )
+    s3_response.close()
+    s3_response.release_conn()
 
     tag_object(tag_name, db, project_id, client_id, object_id, filename)
 
@@ -365,11 +389,28 @@ async def retrieve_intermediate_result_from_local(
     # retrieve project id from analysis
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
-    response = _get_object_from_s3(s3, settings, project_id, object_id, client_id)
+    s3_response = await run_in_threadpool(
+        _get_object_from_s3,
+        s3=s3,
+        settings=settings,
+        project_id=project_id,
+        object_id=object_id,
+        client_id=client_id,
+    )
+
+    # Manually iterate the response here to properly close the response because StreamingResponse does not do it
+    # automatically.
+    async def _iter_response(response):
+        try:
+            while chunk := await run_in_threadpool(response.read, amt=1_024 * 1_024):
+                yield chunk
+        finally:
+            response.close()
+            response.release_conn()
 
     return StreamingResponse(
-        response,
-        media_type=response.headers.get("Content-Type", "application/octet-stream"),
+        _iter_response(s3_response),
+        media_type=s3_response.headers.get("Content-Type", "application/octet-stream"),
     )
 
 
@@ -400,8 +441,6 @@ async def upload_local_file(
     # Retrieve project id from analysis.
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
-    response = _get_object_from_s3(s3, settings, project_id, object_id, client_id)
-
     # Check for filename in database. If there is no filename, use object_id per default.
     filename = str(object_id)
     with db.atomic():
@@ -409,19 +448,32 @@ async def upload_local_file(
         if result.count() == 1:
             filename = result.get().filename
 
-    file = UploadFile(
-        file=response,
-        filename=filename,
-        headers=response.headers,
+    s3_response = await run_in_threadpool(
+        _get_object_from_s3,
+        s3=s3,
+        settings=settings,
+        project_id=project_id,
+        object_id=object_id,
+        client_id=client_id,
     )
 
-    return await submit_intermediate_result_to_hub(
-        file=file,
-        request=request,
-        client_id=client_id,
-        core_client=core_client,
-        storage_client=storage_client,
-        private_key=private_key,
-        remote_node_id=remote_node_id,
-        node_id=node_id,
-    )
+    try:
+        file = UploadFile(
+            file=s3_response,
+            filename=filename,
+            headers=s3_response.headers,
+        )
+
+        return await submit_intermediate_result_to_hub(
+            file=file,
+            request=request,
+            client_id=client_id,
+            core_client=core_client,
+            storage_client=storage_client,
+            private_key=private_key,
+            remote_node_id=remote_node_id,
+            node_id=node_id,
+        )
+    finally:
+        s3_response.close()
+        s3_response.release_conn()

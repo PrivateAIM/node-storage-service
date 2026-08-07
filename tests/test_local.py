@@ -159,7 +159,8 @@ def test_403_delete_results(test_client, project_id, s3, postgres):
     assert _db_snapshot(postgres) == before_snapshot
 
 
-def test_200_delete_results(test_client, core_client, rng, s3, postgres):
+def test_200_delete_results(test_client, core_client_pwd_auth, rng, s3, postgres):
+    core_client = core_client_pwd_auth
     project = core_client.create_project(name=next_prefixed_name())
     analysis = core_client.create_analysis(project_id=project.id, name=next_prefixed_name())
 
@@ -232,7 +233,7 @@ def test_200_upload_local_file(
     assert r.status_code == status.HTTP_200_OK
     assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
 
-    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysis_id": analysis_id}).pop()
+    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysisId": analysis_id}).pop()
 
     assert analysis_bucket_file.path == str(model.object_id)
 
