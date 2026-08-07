@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_app_state(request: Request) -> AppState:
-    return request.state.app_state
+    return request.app.state.app_state
 
 
 def get_settings(state: Annotated[AppState, Depends(get_app_state)]) -> Settings:
