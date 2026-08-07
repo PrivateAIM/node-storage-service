@@ -402,7 +402,7 @@ async def retrieve_intermediate_result_from_local(
     # automatically.
     async def _iter_response(response):
         try:
-            while chunk := await run_in_threadpool(response.read):
+            while chunk := await run_in_threadpool(response.read, amt=1_024 * 1_024):
                 yield chunk
         finally:
             response.close()
