@@ -441,6 +441,13 @@ async def upload_local_file(
     # Retrieve project id from analysis.
     project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
 
+    # Check for filename in database. If there is no filename, use object_id per default.
+    filename = str(object_id)
+    with db.atomic():
+        result = crud.Result.select().where((crud.Result.object_id == object_id) & (crud.Result.client_id == client_id))
+        if result.count() == 1:
+            filename = result.get().filename
+
     s3_response = await run_in_threadpool(
         _get_object_from_s3,
         s3=s3,
@@ -450,20 +457,13 @@ async def upload_local_file(
         client_id=client_id,
     )
 
-    # Check for filename in database. If there is no filename, use object_id per default.
-    filename = str(object_id)
-    with db.atomic():
-        result = crud.Result.select().where((crud.Result.object_id == object_id) & (crud.Result.client_id == client_id))
-        if result.count() == 1:
-            filename = result.get().filename
-
-    file = UploadFile(
-        file=s3_response,
-        filename=filename,
-        headers=s3_response.headers,
-    )
-
     try:
+        file = UploadFile(
+            file=s3_response,
+            filename=filename,
+            headers=s3_response.headers,
+        )
+
         return await submit_intermediate_result_to_hub(
             file=file,
             request=request,
