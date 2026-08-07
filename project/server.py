@@ -1,5 +1,5 @@
 import logging.config
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, ExitStack
 import ssl
 import uuid
 
@@ -82,86 +82,95 @@ def _get_node_id(s: Settings, core_client: CoreClient) -> uuid.UUID:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger = logging.getLogger(__name__)
+    stack = ExitStack()
 
-    s = Settings()
-    logger.info("Successfully read and validated the configuration.")
+    try:
+        s = Settings()
+        logger.info("Successfully read and validated the configuration.")
 
-    ssl_context = _build_ssl_context(s)
-    # Generate new proxy mounts every time so that clients get fresh httpx2.HTTPTransport instances.
-    auth_flow_client = httpx.Client(
-        base_url=str(s.hub.auth_base_url),
-        verify=ssl_context,
-        mounts=_build_proxy_mounts(s, ssl_context),
-    )
-    auth = ClientAuth(s.hub.auth.id, s.hub.auth.secret.get_secret_value(), client=auth_flow_client)
-    core_client = CoreClient(
-        client=httpx.Client(
-            base_url=str(s.hub.core_base_url),
-            auth=auth,
+        ssl_context = _build_ssl_context(s)
+        # Generate new proxy mounts every time so that clients get fresh httpx2.HTTPTransport instances.
+        auth_flow_client = httpx.Client(
+            base_url=str(s.hub.auth_base_url),
             verify=ssl_context,
             mounts=_build_proxy_mounts(s, ssl_context),
         )
-    )
-    storage_client = StorageClient(
-        client=httpx.Client(
-            base_url=str(s.hub.storage_base_url),
-            auth=auth,
-            verify=ssl_context,
-            mounts=_build_proxy_mounts(s, ssl_context),
+        stack.callback(auth_flow_client.close)
+
+        auth = ClientAuth(s.hub.auth.id, s.hub.auth.secret.get_secret_value(), client=auth_flow_client)
+
+        core_client = CoreClient(
+            client=httpx.Client(
+                base_url=str(s.hub.core_base_url),
+                auth=auth,
+                verify=ssl_context,
+                mounts=_build_proxy_mounts(s, ssl_context),
+            )
         )
-    )
-    logger.info("Successfully instantiated the core and storage client to communicate with the Hub.")
+        stack.callback(core_client.close)
 
-    minio = Minio(
-        s.s3.endpoint,
-        access_key=s.s3.access_key,
-        secret_key=s.s3.secret_key.get_secret_value(),
-        region=s.s3.region,
-        secure=s.s3.use_ssl,
-    )
-    if not minio.bucket_exists(bucket_name=s.s3.bucket):
-        raise RuntimeError(f"Bucket '{s.s3.bucket}' does not exist.")
-    logger.info(f"Connected to S3 object storage under {s.s3.endpoint}.")
+        storage_client = StorageClient(
+            client=httpx.Client(
+                base_url=str(s.hub.storage_base_url),
+                auth=auth,
+                verify=ssl_context,
+                mounts=_build_proxy_mounts(s, ssl_context),
+            )
+        )
+        stack.callback(storage_client.close)
 
-    postgres = PooledPostgresqlDatabase(
-        s.postgres.db,
-        user=s.postgres.user,
-        password=s.postgres.password.get_secret_value(),
-        host=s.postgres.host,
-        port=s.postgres.port,
-        max_connections=s.postgres.max_connections,
-        stale_timeout=s.postgres.stale_timeout,
-        keepalives=1,
-        keepalives_idle=s.postgres.keepalives_idle,
-        keepalives_interval=s.postgres.keepalives_interval,
-        keepalives_count=s.postgres.keepalives_count,
-    )
-    init_db(postgres)
-    logger.info(f"Connected to database at port {s.postgres.port} to store tags and results.")
+        logger.info("Successfully instantiated the core and storage client to communicate with the Hub.")
 
-    app.state.app_state = AppState(
-        settings=s,
-        core_client=core_client,
-        storage_client=storage_client,
-        ecdh_private_key=_get_ecdh_private_key(s),
-        node_id=_get_node_id(s, core_client),
-        s3_client=minio,
-        postgres=postgres,
-    )
-    logger.info("Building app state done.")
+        minio = Minio(
+            s.s3.endpoint,
+            access_key=s.s3.access_key,
+            secret_key=s.s3.secret_key.get_secret_value(),
+            region=s.s3.region,
+            secure=s.s3.use_ssl,
+        )
+        if not minio.bucket_exists(bucket_name=s.s3.bucket):
+            raise RuntimeError(f"Bucket '{s.s3.bucket}' does not exist.")
+        logger.info(f"Connected to S3 object storage under {s.s3.endpoint}.")
 
-    # Enable OpenDP features.
-    enable_features("floating-point")
-    enable_features("contrib")
-    logging.info("Enabled OpenDP's 'floating-point' and 'contrib' features.")
+        postgres = PooledPostgresqlDatabase(
+            s.postgres.db,
+            user=s.postgres.user,
+            password=s.postgres.password.get_secret_value(),
+            host=s.postgres.host,
+            port=s.postgres.port,
+            max_connections=s.postgres.max_connections,
+            stale_timeout=s.postgres.stale_timeout,
+            keepalives=1,
+            keepalives_idle=s.postgres.keepalives_idle,
+            keepalives_interval=s.postgres.keepalives_interval,
+            keepalives_count=s.postgres.keepalives_count,
+        )
+        stack.callback(postgres.close_all)
 
-    yield
+        init_db(postgres)
+        logger.info(f"Connected to database at port {s.postgres.port} to store tags and results.")
 
-    # Close all connections to the database.
-    postgres.close_all()
-    core_client.close()
-    storage_client.close()
-    logger.info("Successfully closed all database and client connections.")
+        app.state.app_state = AppState(
+            settings=s,
+            core_client=core_client,
+            storage_client=storage_client,
+            ecdh_private_key=_get_ecdh_private_key(s),
+            node_id=_get_node_id(s, core_client),
+            s3_client=minio,
+            postgres=postgres,
+        )
+        logger.info("Building app state done.")
+
+        # Enable OpenDP features.
+        enable_features("floating-point")
+        enable_features("contrib")
+        logging.info("Enabled OpenDP's 'floating-point' and 'contrib' features.")
+
+        yield
+    finally:
+        # Close all clients that were already registered.
+        stack.close()
+        logger.info("Successfully closed all database and client connections.")
 
 
 def get_server_instance():
