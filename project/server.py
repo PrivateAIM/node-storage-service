@@ -164,7 +164,7 @@ async def lifespan(app: FastAPI):
         # Enable OpenDP features.
         enable_features("floating-point")
         enable_features("contrib")
-        logging.info("Enabled OpenDP's 'floating-point' and 'contrib' features.")
+        logger.info("Enabled OpenDP's 'floating-point' and 'contrib' features.")
 
         yield
     finally:
