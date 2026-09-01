@@ -94,6 +94,7 @@ async def lifespan(app: FastAPI):
             base_url=str(s.hub.auth_base_url),
             verify=ssl_context,
             mounts=_build_proxy_mounts(s, ssl_context),
+            timeout=20,
         )
         stack.callback(auth_flow_client.close)
 
@@ -117,7 +118,7 @@ async def lifespan(app: FastAPI):
                 verify=ssl_context,
                 mounts=_build_proxy_mounts(s, ssl_context),
                 timeout=httpx.Timeout(
-                    10, read=None, write=None
+                    20, read=None, write=None
                 ),  # TODO: better solution for hardcoding the timeout here
             )
         )
