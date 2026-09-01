@@ -115,7 +115,9 @@ async def lifespan(app: FastAPI):
                 auth=auth,
                 verify=ssl_context,
                 mounts=_build_proxy_mounts(s, ssl_context),
-                timeout=httpx.Timeout(10, read=None),  # TODO: better solution for hardcoding the timeout here
+                timeout=httpx.Timeout(
+                    10, read=None, write=None
+                ),  # TODO: better solution for hardcoding the timeout here
             )
         )
         stack.callback(storage_client.close)
