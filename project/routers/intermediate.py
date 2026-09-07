@@ -165,7 +165,7 @@ async def retrieve_intermediate_result_from_hub(
         except InvalidTag:
             logger.exception(f"Failed to decrypt file with ID {object_id} while streaming.")
             raise
-        finally:
+        else:
             try:
                 storage_client.delete_bucket_file(bucket_file_id=object_id)
             except flame_hub.HubAPIError:

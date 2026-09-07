@@ -1,6 +1,6 @@
 [project]
 name = "flame-storage-service"
-version = "0.2.1"
+version = "0.2.2"
 description = "Service for handling intermediate files and submitting result files to the FLAME Hub."
 authors = [
     {name = "Maximilian Jugl"},
