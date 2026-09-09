@@ -1420,14 +1420,14 @@ files = [
 
 [[package]]
 name = "peewee"
-version = "4.3.0"
+version = "4.5.1"
 description = "a little orm"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "peewee-4.3.0-py3-none-any.whl", hash = "sha256:62a43d5934e7986747285124059c5ad8908cc70e538472aadae5cb5e9f10006c"},
-    {file = "peewee-4.3.0.tar.gz", hash = "sha256:f2e6686e6fc61d236fd12f370bfd42955b7b42bbd9954f207d02434a0328c3de"},
+    {file = "peewee-4.5.1-py3-none-any.whl", hash = "sha256:dbbdc93e9be08d1df49ceed48dc5d609bfeda6112848086f1f6c1f1debe70975"},
+    {file = "peewee-4.5.1.tar.gz", hash = "sha256:8005cb45c54e1a282a2f24ddd583f0f7a80cd5d9c635d50d63f57c11d88c392a"},
 ]
 
 [package.extras]
@@ -3224,4 +3224,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "80019e88871c252265c929b666a347f1118062144e0f6de6843e1a6b9365507c"
+content-hash = "3dfccaeb385b06dc9485d6e7374b9f3dd944b1f55e047c6016d64cd38696080f"
