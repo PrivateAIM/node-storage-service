@@ -1200,18 +1200,18 @@ i18n = ["Babel (>=2.7)"]
 
 [[package]]
 name = "jwcrypto"
-version = "1.5.8"
+version = "1.6.1"
 description = "Implementation of JOSE Web standards"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "jwcrypto-1.5.8-py3-none-any.whl", hash = "sha256:85aeb475f808d56bbc2f2ed1f6f73e6a317c4011a4321505f02f0aed695a3742"},
-    {file = "jwcrypto-1.5.8.tar.gz", hash = "sha256:c3d7114b6f6e65b52f6b7da817eb8cb8423e1da31e1ef13508447c81ecbdcc34"},
+    {file = "jwcrypto-1.6.1-py3-none-any.whl", hash = "sha256:77e856818e514cb3d64a1043b6885a7d52f5cc37773f5e944de02103c8d3a54f"},
+    {file = "jwcrypto-1.6.1.tar.gz", hash = "sha256:a1e1570da5c2e35dbcd375ec1d2891a24de8eb35ee2c1fe8e91978efb72cfe90"},
 ]
 
 [package.dependencies]
-cryptography = ">=39.0.0"
+cryptography = ">=49.0.0"
 typing_extensions = ">=4.5.0"
 
 [[package]]
@@ -3224,4 +3224,4 @@ dev = ["pytest", "setuptools"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4"
-content-hash = "80019e88871c252265c929b666a347f1118062144e0f6de6843e1a6b9365507c"
+content-hash = "573b0c9410dec6038b7b056c34fd680d4570a4a268df97d64c18229502aa2798"
