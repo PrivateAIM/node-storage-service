@@ -119,19 +119,16 @@ def get_client_id(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="JWT is malformed")
 
 
-_ANALYSIS_NODES_PAGE_LIMIT = 50
-
-
 def get_analysis_id(
     client_id: Annotated[str, Depends(get_client_id)],
     core_client: Annotated[CoreClient, Depends(get_core_client)],
-    node_id: Annotated[uuid.UUID, Depends(get_node_id)],
 ) -> str:
     """Resolve the analysis an incoming token belongs to.
 
     Authup client-credentials tokens identify the Hub-managed *client* (``client_id`` = the
-    Authup client UUID), not the analysis. The Hub keeps that client id on the analysis, so look
-    it up among the analyses assigned to this node.
+    Authup client UUID), not the analysis. The Hub keeps that client id on the analysis, so the
+    analysis is looked up with a single query filtered by client id. This requires a Hub release
+    that allows ``filter[clientId]`` on analyses (deploy the Hub first).
     """
     try:
         client_uuid = uuid.UUID(client_id)
@@ -140,25 +137,14 @@ def get_analysis_id(
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Token is not associated with an analysis on this node")
 
     try:
-        offset = 0
-        while True:
-            # The SDK always includes the `analysis` relation of analysis nodes.
-            analysis_nodes = core_client.find_analysis_nodes(
-                filter={"nodeId": str(node_id)},
-                sort={"by": "created_at", "order": "descending"},
-                page={"limit": _ANALYSIS_NODES_PAGE_LIMIT, "offset": offset},
-            )
+        analyses = core_client.find_analyses(filter={"clientId": str(client_uuid)})
+        # Re-check client-side: a Hub without the clientId filter ignores it and returns any analysis.
+        analysis = next((a for a in analyses if a.client_id == client_uuid), None)
 
-            for analysis_node in analysis_nodes:
-                if analysis_node.analysis is not None and analysis_node.analysis.client_id == client_uuid:
-                    analysis_id = str(analysis_node.analysis.id)
-                    logger.debug(f"Resolved client ID {client_id} to analysis ID {analysis_id}")
-                    return analysis_id
-
-            if len(analysis_nodes) < _ANALYSIS_NODES_PAGE_LIMIT:
-                break
-
-            offset += _ANALYSIS_NODES_PAGE_LIMIT
+        if analysis is not None:
+            analysis_id = str(analysis.id)
+            logger.debug(f"Resolved client ID {client_id} to analysis ID {analysis_id}")
+            return analysis_id
 
         # ponytail: fallback for Keycloak-era tokens whose azp *is* the analysis id;
         # drop once the local Keycloak is gone (Phase 2)
@@ -170,5 +156,5 @@ def get_analysis_id(
     if analysis is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Token is not associated with an analysis on this node")
 
-    logger.debug(f"Resolved client ID {client_id} to analysis ID {client_id}")
+    logger.debug(f"Accepted client ID {client_id} as analysis ID via the Keycloak-era fallback")
     return client_id

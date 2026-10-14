@@ -123,7 +123,7 @@ class MockClient:
         return []
 
     @staticmethod
-    def find_analysis_nodes(*args, **kwargs):
+    def find_analyses(*args, **kwargs):
         return []
 
     @staticmethod
