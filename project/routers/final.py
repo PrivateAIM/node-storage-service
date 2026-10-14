@@ -9,7 +9,7 @@ from opendp.metrics import absolute_distance
 from starlette import status
 
 from project.dependencies import (
-    get_client_id,
+    get_analysis_id,
     get_core_client,
     get_storage_client,
 )
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
     name="final.localdp.put",
 )
 async def submit_final_single_value_with_local_dp_result_to_hub(
-    client_id: Annotated[str, Depends(get_client_id)],
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     file: UploadFile,
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
@@ -53,12 +53,12 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
 
     noisy_file_content = str(noisy_value).encode("utf-8")
 
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": client_id, "type": "RESULT"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": analysis_id, "type": "RESULT"})
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Result bucket for analysis with ID {client_id} was not found",
+            detail=f"Result bucket for analysis with ID {analysis_id} was not found",
         )
 
     analysis_bucket = analysis_bucket_lst.pop()
@@ -87,7 +87,7 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
     name="final.put",
 )
 async def submit_final_result_to_hub(
-    client_id: Annotated[str, Depends(get_client_id)],
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     file: UploadFile,
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
@@ -95,12 +95,12 @@ async def submit_final_result_to_hub(
     """Upload a file as a final result to the FLAME Hub.
     Returns a 204 on success."""
     # fetch analysis bucket
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": client_id, "type": "RESULT"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": analysis_id, "type": "RESULT"})
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Result bucket for analysis with ID {client_id} was not found",
+            detail=f"Result bucket for analysis with ID {analysis_id} was not found",
         )
 
     analysis_bucket = analysis_bucket_lst.pop()

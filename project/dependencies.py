@@ -117,3 +117,58 @@ def get_client_id(
     except (common.JWException, ValueError):
         logger.exception("Failed to deserialize JWT")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="JWT is malformed")
+
+
+_ANALYSIS_NODES_PAGE_LIMIT = 50
+
+
+def get_analysis_id(
+    client_id: Annotated[str, Depends(get_client_id)],
+    core_client: Annotated[CoreClient, Depends(get_core_client)],
+    node_id: Annotated[uuid.UUID, Depends(get_node_id)],
+) -> str:
+    """Resolve the analysis an incoming token belongs to.
+
+    Authup client-credentials tokens identify the Hub-managed *client* (``client_id`` = the
+    Authup client UUID), not the analysis. The Hub keeps that client id on the analysis, so look
+    it up among the analyses assigned to this node.
+    """
+    try:
+        client_uuid = uuid.UUID(client_id)
+    except ValueError:
+        # Neither an Authup client id nor an analysis id, both of which are UUIDs.
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Token is not associated with an analysis on this node")
+
+    try:
+        offset = 0
+        while True:
+            # The SDK always includes the `analysis` relation of analysis nodes.
+            analysis_nodes = core_client.find_analysis_nodes(
+                filter={"nodeId": str(node_id)},
+                sort={"by": "created_at", "order": "descending"},
+                page={"limit": _ANALYSIS_NODES_PAGE_LIMIT, "offset": offset},
+            )
+
+            for analysis_node in analysis_nodes:
+                if analysis_node.analysis is not None and analysis_node.analysis.client_id == client_uuid:
+                    analysis_id = str(analysis_node.analysis.id)
+                    logger.debug(f"Resolved client ID {client_id} to analysis ID {analysis_id}")
+                    return analysis_id
+
+            if len(analysis_nodes) < _ANALYSIS_NODES_PAGE_LIMIT:
+                break
+
+            offset += _ANALYSIS_NODES_PAGE_LIMIT
+
+        # ponytail: fallback for Keycloak-era tokens whose azp *is* the analysis id;
+        # drop once the local Keycloak is gone (Phase 2)
+        analysis = core_client.get_analysis(client_id)
+    except HTTPError:
+        logger.exception(f"Failed to resolve analysis for client ID {client_id}")
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Hub is unavailable")
+
+    if analysis is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Token is not associated with an analysis on this node")
+
+    logger.debug(f"Resolved client ID {client_id} to analysis ID {client_id}")
+    return client_id
