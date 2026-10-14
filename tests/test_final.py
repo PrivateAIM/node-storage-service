@@ -136,7 +136,7 @@ def test_200_submit_to_upload(test_client, rng, core_client, storage_client, ana
     assert result_file_content == blob, "Result file has incorrect content."
 
 
-def test_404_submit_invalid_id(test_client, rng):
+def test_403_submit_invalid_id(test_client, rng):
     rand_uuid = str(uuid.uuid4())
     blob = next_random_bytes(rng)
 
@@ -146,8 +146,8 @@ def test_404_submit_invalid_id(test_client, rng):
         files=wrap_bytes_for_request(blob),
     )
 
-    assert r.status_code == status.HTTP_404_NOT_FOUND
-    assert detail_of(r) == f"Result bucket for analysis with ID {rand_uuid} was not found"
+    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert detail_of(r) == "Token is not associated with an analysis on this node"
 
 
 def test_404_analysis_bucket(test_client, rng, analysis_id):

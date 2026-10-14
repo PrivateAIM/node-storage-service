@@ -134,7 +134,7 @@ def test_200_create_tagged_upload(
     assert tagged_result.filename == filename
 
 
-def test_404_submit_tagged(test_client, rng):
+def test_403_submit_tagged(test_client, rng):
     rand_uuid = str(uuid.uuid4())
     blob = next_random_bytes(rng)
 
@@ -145,8 +145,8 @@ def test_404_submit_tagged(test_client, rng):
         data={"tag": "foobar"},
     )
 
-    assert r.status_code == status.HTTP_404_NOT_FOUND
-    assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
+    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert detail_of(r) == "Token is not associated with an analysis on this node"
 
 
 def test_400_invalid_tag(test_client, rng, analysis_id):
@@ -167,7 +167,7 @@ def test_400_invalid_tag(test_client, rng, analysis_id):
     assert detail_of(r) == f"Invalid tag `{tag}`"
 
 
-def test_404_get_tags(test_client):
+def test_403_get_tags(test_client):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.get(
@@ -175,11 +175,11 @@ def test_404_get_tags(test_client):
         auth=BearerAuth(issue_client_access_token(rand_uuid)),
     )
 
-    assert r.status_code == status.HTTP_404_NOT_FOUND
-    assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
+    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert detail_of(r) == "Token is not associated with an analysis on this node"
 
 
-def test_404_get_results_by_tag(test_client):
+def test_403_get_results_by_tag(test_client):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.get(
@@ -188,8 +188,8 @@ def test_404_get_results_by_tag(test_client):
         auth=BearerAuth(issue_client_access_token(rand_uuid)),
     )
 
-    assert r.status_code == status.HTTP_404_NOT_FOUND
-    assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
+    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert detail_of(r) == "Token is not associated with an analysis on this node"
 
 
 def test_200_delete_tagged_results(test_client, core_client_pwd_auth, rng, s3, postgres):

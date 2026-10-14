@@ -120,7 +120,7 @@ def test_404_no_remote_node(test_client, analysis_id, core_client, rng):
     assert detail_of(r) == f"Remote node with ID {rand_uuid} does not exist."
 
 
-def test_404_submit_invalid_client_id(test_client, rng):
+def test_403_submit_invalid_client_id(test_client, rng):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.put(
@@ -132,8 +132,8 @@ def test_404_submit_invalid_client_id(test_client, rng):
         },
     )
 
-    assert r.status_code == status.HTTP_404_NOT_FOUND
-    assert detail_of(r) == f"Temp bucket for analysis with ID {rand_uuid} was not found"
+    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert detail_of(r) == "Token is not associated with an analysis on this node"
 
 
 def test_400_decrypt_intermediate(

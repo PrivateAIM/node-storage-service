@@ -2,6 +2,7 @@ import random
 import string
 import time
 import uuid
+from types import SimpleNamespace
 from typing import Callable
 
 from cryptography.hazmat.primitives import serialization
@@ -120,3 +121,12 @@ class MockClient:
     @staticmethod
     def find_analysis_buckets(*args, **kwargs):
         return []
+
+    @staticmethod
+    def find_analysis_nodes(*args, **kwargs):
+        return []
+
+    @staticmethod
+    def get_analysis(analysis_id, *args, **kwargs):
+        # Let get_analysis_id fall back to treating the token claim as the analysis id.
+        return SimpleNamespace(id=analysis_id)
