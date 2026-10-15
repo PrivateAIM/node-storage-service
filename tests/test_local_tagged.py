@@ -23,6 +23,7 @@ from tests.common.helpers import (
     next_random_string,
     wait_for_analysis_bucket_file,
     temporarily_change_dependency,
+    get_analysis_client_id,
 )
 from tests.common.rest import wrap_bytes_for_request, detail_of
 from tests.common.env import hub_adapter_client_id
@@ -64,6 +65,7 @@ def test_200_create_tagged_upload(
     test_client,
     rng,
     analysis_id,
+    analysis_client_id,
     project_id,
     core_client,
     s3,
@@ -73,7 +75,7 @@ def test_200_create_tagged_upload(
     tag = next_random_string(charset=string.ascii_lowercase)
     filename = str(uuid.uuid4())
     blob = next_random_bytes(rng)
-    auth = BearerAuth(issue_client_access_token(analysis_id))
+    auth = BearerAuth(issue_client_access_token(analysis_client_id))
 
     bucket = os.environ.get("S3__BUCKET", "flame")
     n_objects = len(list(s3.list_objects(bucket, prefix=f"local/{project_id}/", recursive=True)))
@@ -134,7 +136,7 @@ def test_200_create_tagged_upload(
     assert tagged_result.filename == filename
 
 
-def test_404_submit_tagged(test_client, rng):
+def test_403_submit_tagged(test_client, rng):
     rand_uuid = str(uuid.uuid4())
     blob = next_random_bytes(rng)
 
@@ -145,16 +147,16 @@ def test_404_submit_tagged(test_client, rng):
         data={"tag": "foobar"},
     )
 
-    assert r.status_code == status.HTTP_404_NOT_FOUND
-    assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
+    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert detail_of(r) == "Token is not associated with an analysis"
 
 
-def test_400_invalid_tag(test_client, rng, analysis_id):
+def test_400_invalid_tag(test_client, rng, analysis_client_id):
     # Create a random invalid tag.
     tag = next_random_string(charset=string.ascii_lowercase) + "-"
     filename = str(uuid.uuid4())
     blob = next_random_bytes(rng)
-    auth = BearerAuth(issue_client_access_token(analysis_id))
+    auth = BearerAuth(issue_client_access_token(analysis_client_id))
 
     r = test_client.put(
         "/local",
@@ -167,7 +169,7 @@ def test_400_invalid_tag(test_client, rng, analysis_id):
     assert detail_of(r) == f"Invalid tag `{tag}`"
 
 
-def test_404_get_tags(test_client):
+def test_403_get_tags(test_client):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.get(
@@ -175,11 +177,11 @@ def test_404_get_tags(test_client):
         auth=BearerAuth(issue_client_access_token(rand_uuid)),
     )
 
-    assert r.status_code == status.HTTP_404_NOT_FOUND
-    assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
+    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert detail_of(r) == "Token is not associated with an analysis"
 
 
-def test_404_get_results_by_tag(test_client):
+def test_403_get_results_by_tag(test_client):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.get(
@@ -188,8 +190,8 @@ def test_404_get_results_by_tag(test_client):
         auth=BearerAuth(issue_client_access_token(rand_uuid)),
     )
 
-    assert r.status_code == status.HTTP_404_NOT_FOUND
-    assert detail_of(r) == f"Analysis with ID {rand_uuid} not found"
+    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert detail_of(r) == "Token is not associated with an analysis"
 
 
 def test_200_delete_tagged_results(test_client, core_client_pwd_auth, rng, s3, postgres):
@@ -206,7 +208,7 @@ def test_200_delete_tagged_results(test_client, core_client_pwd_auth, rng, s3, p
     tag = next_random_string(charset=string.ascii_lowercase)
     test_client.put(
         "/local",
-        auth=BearerAuth(issue_client_access_token(analysis.id)),
+        auth=BearerAuth(issue_client_access_token(get_analysis_client_id(core_client, analysis.id))),
         files=wrap_bytes_for_request(blob),
         data={"tag": tag},
     )
@@ -235,14 +237,14 @@ def test_200_delete_tagged_results(test_client, core_client_pwd_auth, rng, s3, p
         assert len(crud.Tag.select().where(crud.Tag.project_id == project.id)) == 0
 
 
-def test_tag_existing_object(test_client, s3_object, project_id, analysis_id, postgres):
+def test_tag_existing_object(test_client, s3_object, project_id, analysis_id, analysis_client_id, postgres):
     object_id = s3_object.object_name.split("/")[-1]
     filename = next_random_string()
     tag_name = next_random_string(charset=string.ascii_lowercase)
 
     r = test_client.post(
         "/local/tags",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         params={"tag_name": tag_name, "object_id": object_id, "filename": filename},
     )
 
@@ -264,7 +266,7 @@ def test_tag_existing_object(test_client, s3_object, project_id, analysis_id, po
     # The same request should not produce new database entries.
     r = test_client.post(
         "/local/tags",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         params={"tag_name": tag_name, "object_id": object_id, "filename": filename},
     )
 
@@ -279,7 +281,7 @@ def test_tag_existing_object(test_client, s3_object, project_id, analysis_id, po
     new_filename = next_random_string()
     r = test_client.post(
         "/local/tags",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         params={"tag_name": tag_name, "object_id": object_id, "filename": new_filename},
     )
 
@@ -295,6 +297,7 @@ def test_200_upload_local_file(
     core_client,
     rng,
     analysis_id,
+    analysis_client_id,
     this_node,
     remote_node_and_private_key,
 ):
@@ -303,7 +306,7 @@ def test_200_upload_local_file(
     filename = next_random_string()
     r = test_client.put(
         "/local",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         files=wrap_bytes_for_request(blob, file_name=filename),
         data={"tag": tag_name},
     )
@@ -315,7 +318,7 @@ def test_200_upload_local_file(
     remote_node, remote_private_key = remote_node_and_private_key
     r = test_client.put(
         "/local/upload",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         params={
             "object_id": model.object_id,
             "remote_node_id": str(remote_node.id),
@@ -338,7 +341,7 @@ def test_200_upload_local_file(
     try:
         r = test_client.get(
             f"{model.url.path}?{model.url.query}",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         )
     finally:
         reset_private_key()

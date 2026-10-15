@@ -15,6 +15,7 @@ from starlette.responses import StreamingResponse
 
 from project import crypto
 from project.dependencies import (
+    get_analysis_id,
     get_client_id,
     get_core_client,
     get_storage_client,
@@ -61,7 +62,7 @@ def get_remote_node_public_key(core_client: flame_hub.CoreClient, remote_node_id
     name="intermediate.put",
 )
 async def submit_intermediate_result_to_hub(
-    client_id: Annotated[str, Depends(get_client_id)],
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     file: Annotated[UploadFile, File()],
     request: Request,
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
@@ -74,12 +75,12 @@ async def submit_intermediate_result_to_hub(
     Returns a 200 on success.
     This endpoint uploads the file and returns a link with which it can be retrieved."""
 
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": client_id, "type": "TEMP"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": analysis_id, "type": "TEMP"})
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Temp bucket for analysis with ID {client_id} was not found",
+            detail=f"Temp bucket for analysis with ID {analysis_id} was not found",
         )
 
     analysis_bucket = analysis_bucket_lst.pop()

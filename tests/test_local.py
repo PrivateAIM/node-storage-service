@@ -21,6 +21,7 @@ from tests.common.helpers import (
     next_prefixed_name,
     wait_for_analysis_bucket_file,
     temporarily_change_dependency,
+    get_analysis_client_id,
 )
 from tests.common.rest import wrap_bytes_for_request, detail_of
 from tests.common.env import hub_adapter_client_id
@@ -39,7 +40,7 @@ def test_200_submit_receive_from_local(
     rng,
     core_client,
     project_id,
-    analysis_id,
+    analysis_client_id,
     s3,
     postgres,
 ):
@@ -50,7 +51,7 @@ def test_200_submit_receive_from_local(
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/local",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         files=wrap_bytes_for_request(blob),
     )
 
@@ -64,18 +65,18 @@ def test_200_submit_receive_from_local(
     model = LocalUploadResponse(**r.json())
     r = test_client.get(
         model.url.path,
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
     )
 
     assert r.status_code == status.HTTP_200_OK
     assert r.read() == blob
 
 
-def test_404_unknown_oid(test_client, core_client, analysis_id):
+def test_404_unknown_oid(test_client, core_client, analysis_client_id):
     oid = uuid.uuid4()
     r = test_client.get(
         f"/local/{oid}",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
     )
 
     assert r.status_code == status.HTTP_404_NOT_FOUND
@@ -83,34 +84,35 @@ def test_404_unknown_oid(test_client, core_client, analysis_id):
 
 
 def test_200_result_from_another_analysis(test_client, core_client, analysis_id_factory, rng):
-    first_analysis_id, second_analysis_id = analysis_id_factory(), analysis_id_factory()
+    first_client_id = get_analysis_client_id(core_client, analysis_id_factory())
+    second_client_id = get_analysis_client_id(core_client, analysis_id_factory())
 
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/local",
-        auth=BearerAuth(issue_client_access_token(first_analysis_id)),
+        auth=BearerAuth(issue_client_access_token(first_client_id)),
         files=wrap_bytes_for_request(blob),
     )
 
-    r = test_client.get(r.json()["url"], auth=BearerAuth(issue_client_access_token(second_analysis_id)))
+    r = test_client.get(r.json()["url"], auth=BearerAuth(issue_client_access_token(second_client_id)))
 
     assert r.status_code == status.HTTP_200_OK
     assert r.read() == blob
 
 
 def test_404_result_from_another_project(test_client, core_client, rng, project_id_factory, analysis_id_factory):
-    first_analysis_id = analysis_id_factory(project_id_factory())
-    second_analysis_id = analysis_id_factory(project_id_factory())
+    first_client_id = get_analysis_client_id(core_client, analysis_id_factory(project_id_factory()))
+    second_client_id = get_analysis_client_id(core_client, analysis_id_factory(project_id_factory()))
 
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/local",
-        auth=BearerAuth(issue_client_access_token(first_analysis_id)),
+        auth=BearerAuth(issue_client_access_token(first_client_id)),
         files=wrap_bytes_for_request(blob),
     )
 
     object_id = r.json()["url"].split("/")[-1]
-    r = test_client.get(r.json()["url"], auth=BearerAuth(issue_client_access_token(second_analysis_id)))
+    r = test_client.get(r.json()["url"], auth=BearerAuth(issue_client_access_token(second_client_id)))
 
     assert r.status_code == status.HTTP_404_NOT_FOUND
     assert detail_of(r) == f"Object with ID {object_id} does not exist"
@@ -172,7 +174,7 @@ def test_200_delete_results(test_client, core_client_pwd_auth, rng, s3, postgres
     blob = next_random_bytes(rng)
     test_client.put(
         "/local",
-        auth=BearerAuth(issue_client_access_token(analysis.id)),
+        auth=BearerAuth(issue_client_access_token(get_analysis_client_id(core_client, analysis.id))),
         files=wrap_bytes_for_request(blob),
     )
 
@@ -207,12 +209,13 @@ def test_200_upload_local_file(
     core_client,
     blob,
     analysis_id,
+    analysis_client_id,
     this_node,
     remote_node_and_private_key,
 ):
     r = test_client.put(
         "/local",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         files=wrap_bytes_for_request(blob),
     )
 
@@ -223,7 +226,7 @@ def test_200_upload_local_file(
     remote_node, remote_private_key = remote_node_and_private_key
     r = test_client.put(
         "/local/upload",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         params={
             "object_id": model.object_id,
             "remote_node_id": str(remote_node.id),
@@ -245,7 +248,7 @@ def test_200_upload_local_file(
     try:
         r = test_client.get(
             f"{model.url.path}?{model.url.query}",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         )
     finally:
         reset_private_key()
