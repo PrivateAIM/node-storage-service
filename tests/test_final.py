@@ -16,7 +16,7 @@ from tests.common.rest import wrap_bytes_for_request, detail_of
 pytestmark = pytest.mark.live
 
 
-def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client, analysis_id):
+def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client, analysis_id, analysis_client_id):
     # Send a valid numerical file.
     raw_value = rng.random()
     blob = str(raw_value).encode("utf-8")
@@ -27,7 +27,7 @@ def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client,
 
     r = test_client.put(
         "/final/localdp",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         files={"file": (filename, blob, "text/plain")},
         data=form_data,
     )
@@ -45,7 +45,7 @@ def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client,
     assert noisy_value != raw_value, "Noisy value should be different from raw value."
 
 
-def test_400_faulty_value_file(test_client, analysis_id, rng):
+def test_400_faulty_value_file(test_client, analysis_client_id, rng):
     blob = next_random_bytes(rng)
     filename = "test_result.txt"
 
@@ -54,7 +54,7 @@ def test_400_faulty_value_file(test_client, analysis_id, rng):
 
     r = test_client.put(
         "/final/localdp",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         files={"file": (filename, blob, "text/plain")},
         data=form_data,
     )
@@ -63,8 +63,8 @@ def test_400_faulty_value_file(test_client, analysis_id, rng):
     assert detail_of(r) == "Uploaded file must contain a single numerical value."
 
 
-def test_404_analysis_bucket_with_local_dp(test_client, rng, analysis_id):
-    reset_client = temporarily_change_dependency(test_client, get_core_client, lambda: MockClient())
+def test_404_analysis_bucket_with_local_dp(test_client, rng, analysis_id, analysis_client_id):
+    reset_client = temporarily_change_dependency(test_client, get_core_client, lambda: MockClient(analysis_id))
 
     # Send a valid numerical file.
     raw_value = rng.random()
@@ -77,7 +77,7 @@ def test_404_analysis_bucket_with_local_dp(test_client, rng, analysis_id):
     try:
         r = test_client.put(
             "/final/localdp",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
             files={"file": (filename, blob, "text/plain")},
             data=form_data,
         )
@@ -88,7 +88,7 @@ def test_404_analysis_bucket_with_local_dp(test_client, rng, analysis_id):
         reset_client()
 
 
-def test_502_no_single_result_file_with_local_dp(test_client, rng, analysis_id):
+def test_502_no_single_result_file_with_local_dp(test_client, rng, analysis_client_id):
     reset_client = temporarily_change_dependency(test_client, get_storage_client, lambda: MockClient())
 
     # Send a valid numerical file.
@@ -102,7 +102,7 @@ def test_502_no_single_result_file_with_local_dp(test_client, rng, analysis_id):
     try:
         r = test_client.put(
             "/final/localdp",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
             files={"file": (filename, blob, "text/plain")},
             data=form_data,
         )
@@ -116,11 +116,11 @@ def test_502_no_single_result_file_with_local_dp(test_client, rng, analysis_id):
         reset_client()
 
 
-def test_200_submit_to_upload(test_client, rng, core_client, storage_client, analysis_id):
+def test_200_submit_to_upload(test_client, rng, core_client, storage_client, analysis_id, analysis_client_id):
     blob = next_random_bytes(rng)
     r = test_client.put(
         "/final",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         files=wrap_bytes_for_request(blob),
     )
 
@@ -147,17 +147,17 @@ def test_403_submit_invalid_id(test_client, rng):
     )
 
     assert r.status_code == status.HTTP_403_FORBIDDEN
-    assert detail_of(r) == "Token is not associated with an analysis on this node"
+    assert detail_of(r) == "Token is not associated with an analysis"
 
 
-def test_404_analysis_bucket(test_client, rng, analysis_id):
-    reset_client = temporarily_change_dependency(test_client, get_core_client, lambda: MockClient())
+def test_404_analysis_bucket(test_client, rng, analysis_id, analysis_client_id):
+    reset_client = temporarily_change_dependency(test_client, get_core_client, lambda: MockClient(analysis_id))
     blob = next_random_bytes(rng)
 
     try:
         r = test_client.put(
             "/final",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
             files=wrap_bytes_for_request(blob),
         )
 
@@ -167,14 +167,14 @@ def test_404_analysis_bucket(test_client, rng, analysis_id):
         reset_client()
 
 
-def test_502_no_single_result_file(test_client, rng, analysis_id):
+def test_502_no_single_result_file(test_client, rng, analysis_client_id):
     reset_client = temporarily_change_dependency(test_client, get_storage_client, lambda: MockClient())
     blob = next_random_bytes(rng)
 
     try:
         r = test_client.put(
             "/final",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
             files=wrap_bytes_for_request(blob),
         )
 

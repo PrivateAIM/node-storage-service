@@ -8,6 +8,7 @@ from typing import Callable
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from flame_hub import CoreClient
+import pytest
 from starlette.testclient import TestClient
 
 from tests.common import env
@@ -111,8 +112,21 @@ def temporarily_change_dependency(test_client: TestClient, dependency: Callable,
     return _reset
 
 
+def get_analysis_client_id(core_client: CoreClient, analysis_id: str | uuid.UUID) -> str:
+    """Return the ID of the Authup client the Hub provisioned for an analysis. Tokens of analyses carry this ID."""
+    client_id = core_client.get_analysis(analysis_id).client_id
+
+    if client_id is None:
+        pytest.fail(f"Hub did not provision an Authup client for analysis {analysis_id}")
+
+    return str(client_id)
+
+
 class MockClient:
     """Mock methods from CoreClient and StorageClient to provoke certain errors."""
+
+    def __init__(self, analysis_id: str | uuid.UUID | None = None):
+        self.analysis_id = analysis_id
 
     @staticmethod
     def upload_to_bucket(*args, **kwargs):
@@ -122,11 +136,6 @@ class MockClient:
     def find_analysis_buckets(*args, **kwargs):
         return []
 
-    @staticmethod
-    def find_analyses(*args, **kwargs):
-        return []
-
-    @staticmethod
-    def get_analysis(analysis_id, *args, **kwargs):
-        # Let get_analysis_id fall back to treating the token claim as the analysis id.
-        return SimpleNamespace(id=analysis_id)
+    def find_analyses(self, *args, **kwargs):
+        # Resolve any token to the analysis under test so that requests reach the route.
+        return [SimpleNamespace(id=self.analysis_id)]
