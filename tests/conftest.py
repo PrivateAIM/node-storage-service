@@ -41,6 +41,7 @@ from tests.common.helpers import (
     next_uuid,
     next_ecdh_keypair_bytes,
     temporarily_change_dependency,
+    get_analysis_client_id,
 )
 
 
@@ -468,6 +469,11 @@ def analysis_id_factory(core_client_pwd_auth, storage_client, project_id):
 @pytest.fixture
 def analysis_id(analysis_id_factory):
     return analysis_id_factory()
+
+
+@pytest.fixture
+def analysis_client_id(core_client, analysis_id):
+    return get_analysis_client_id(core_client, analysis_id)
 
 
 @pytest.fixture(scope="package")

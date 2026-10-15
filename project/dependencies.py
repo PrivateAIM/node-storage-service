@@ -127,34 +127,24 @@ def get_analysis_id(
 
     Authup client-credentials tokens identify the Hub-managed *client* (``client_id`` = the
     Authup client UUID), not the analysis. The Hub keeps that client id on the analysis, so the
-    analysis is looked up with a single query filtered by client id. This requires a Hub release
-    that allows ``filter[clientId]`` on analyses (deploy the Hub first).
+    analysis is looked up with a single query filtered by client id. This requires a Hub that
+    allows ``filter[clientId]`` on analyses (PrivateAIM/hub#1930).
     """
     try:
         client_uuid = uuid.UUID(client_id)
     except ValueError:
-        # Neither an Authup client id nor an analysis id, both of which are UUIDs.
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Token is not associated with an analysis on this node")
+        # Authup client ids are UUIDs, so no analysis can match.
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Token is not associated with an analysis")
 
     try:
-        analyses = core_client.find_analyses(filter={"clientId": str(client_uuid)})
-        # Re-check client-side: a Hub without the clientId filter ignores it and returns any analysis.
-        analysis = next((a for a in analyses if a.client_id == client_uuid), None)
-
-        if analysis is not None:
-            analysis_id = str(analysis.id)
-            logger.debug(f"Resolved client ID {client_id} to analysis ID {analysis_id}")
-            return analysis_id
-
-        # ponytail: fallback for Keycloak-era tokens whose azp *is* the analysis id;
-        # drop once the local Keycloak is gone (Phase 2)
-        analysis = core_client.get_analysis(client_id)
+        analyses = core_client.find_analyses(filter={"clientId": str(client_uuid)}, page={"limit": 1})
     except HTTPError:
         logger.exception(f"Failed to resolve analysis for client ID {client_id}")
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Hub is unavailable")
 
-    if analysis is None:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Token is not associated with an analysis on this node")
+    if len(analyses) == 0:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Token is not associated with an analysis")
 
-    logger.debug(f"Accepted client ID {client_id} as analysis ID via the Keycloak-era fallback")
-    return client_id
+    analysis_id = str(analyses[0].id)
+    logger.debug(f"Resolved client ID {client_id} to analysis ID {analysis_id}")
+    return analysis_id
