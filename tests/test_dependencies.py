@@ -11,9 +11,10 @@ from starlette import status
 from project.dependencies import get_analysis_id
 
 
-def _core_client(analyses=()) -> MagicMock:
+def _core_client(analyses=(), analysis=None) -> MagicMock:
     core_client = MagicMock()
     core_client.find_analyses.return_value = list(analyses)
+    core_client.get_analysis.return_value = analysis
     return core_client
 
 
@@ -26,6 +27,15 @@ def test_found_by_client_id():
     core_client.get_analysis.assert_not_called()
 
 
+def test_falls_back_to_claim_as_analysis_id():
+    # TODO(remove): goes away with the Keycloak-era fallback in get_analysis_id.
+    claim = str(uuid.uuid4())
+    core_client = _core_client(analysis=SimpleNamespace(id=uuid.UUID(claim)))
+
+    assert get_analysis_id(claim, core_client) == claim
+    core_client.get_analysis.assert_called_once_with(claim)
+
+
 def test_no_match_is_forbidden():
     core_client = _core_client()
 
@@ -34,6 +44,7 @@ def test_no_match_is_forbidden():
 
     assert e.value.status_code == status.HTTP_403_FORBIDDEN
     assert e.value.detail == "Token is not associated with an analysis"
+    core_client.get_analysis.assert_called_once()
 
 
 def test_non_uuid_claim_is_forbidden_without_hub_calls():
@@ -45,6 +56,7 @@ def test_non_uuid_claim_is_forbidden_without_hub_calls():
     assert e.value.status_code == status.HTTP_403_FORBIDDEN
     assert e.value.detail == "Token is not associated with an analysis"
     core_client.find_analyses.assert_not_called()
+    core_client.get_analysis.assert_not_called()
 
 
 def test_hub_error_is_bad_gateway():
