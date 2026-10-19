@@ -193,9 +193,9 @@ def auth_client(client_auth_client, ssl_context, response_timeout):
 
 
 @pytest.fixture(scope="package")
-def core_client(client_auth_client, ssl_context, response_timeout):
+def core_client(password_auth_client, ssl_context, response_timeout):
     client = httpx.Client(
-        auth=client_auth_client,
+        auth=password_auth_client,
         base_url=env.hub_core_base_url(),
         verify=ssl_context,
         timeout=response_timeout,
@@ -221,9 +221,9 @@ def core_client_pwd_auth(password_auth_client, ssl_context, response_timeout):
 
 
 @pytest.fixture(scope="package")
-def storage_client(client_auth_client, ssl_context, response_timeout):
+def storage_client(password_auth_client, ssl_context, response_timeout):
     client = httpx.Client(
-        auth=client_auth_client,
+        auth=password_auth_client,
         base_url=env.hub_storage_base_url(),
         verify=ssl_context,
         timeout=response_timeout,
