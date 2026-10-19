@@ -2,6 +2,7 @@ import os
 import random
 import uuid
 
+from flame_hub.types import AnalysisBucketType
 from minio import S3Error
 from starlette import status
 import pytest
@@ -19,7 +20,7 @@ from tests.common.helpers import (
     next_random_bytes,
     eventually,
     next_prefixed_name,
-    wait_for_analysis_bucket_file,
+    get_bucket_file,
     temporarily_change_dependency,
     get_analysis_client_id,
 )
@@ -207,6 +208,7 @@ def test_200_delete_results(test_client, core_client_pwd_auth, rng, s3, postgres
 def test_200_upload_local_file(
     test_client,
     core_client,
+    storage_client,
     blob,
     analysis_id,
     analysis_client_id,
@@ -234,11 +236,10 @@ def test_200_upload_local_file(
     )
 
     assert r.status_code == status.HTTP_200_OK
-    assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
 
-    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysisId": analysis_id}).pop()
+    file = get_bucket_file(core_client, storage_client, analysis_id, AnalysisBucketType.TEMP)
 
-    assert analysis_bucket_file.path == str(model.object_id)
+    assert file.path == str(model.object_id)
 
     model = IntermediateUploadResponse(**r.json())
 

@@ -2,6 +2,7 @@ import string
 import uuid
 import os
 
+from flame_hub.types import AnalysisBucketType
 from minio import S3Error
 import pytest
 from starlette import status
@@ -21,7 +22,7 @@ from tests.common.helpers import (
     eventually,
     next_prefixed_name,
     next_random_string,
-    wait_for_analysis_bucket_file,
+    get_bucket_file,
     temporarily_change_dependency,
     get_analysis_client_id,
 )
@@ -295,6 +296,7 @@ def test_tag_existing_object(test_client, s3_object, project_id, analysis_id, an
 def test_200_upload_local_file(
     test_client,
     core_client,
+    storage_client,
     rng,
     analysis_id,
     analysis_client_id,
@@ -329,11 +331,9 @@ def test_200_upload_local_file(
 
     model = IntermediateUploadResponse(**r.json())
 
-    assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
+    file = get_bucket_file(core_client, storage_client, analysis_id, AnalysisBucketType.TEMP)
 
-    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysisId": analysis_id}).pop()
-
-    assert analysis_bucket_file.path == filename
+    assert file.path == filename
 
     # Temporarily change the private key to simulate another node to be able to decrypt data.
     reset_private_key = temporarily_change_dependency(test_client, get_ecdh_private_key, lambda: remote_private_key)
