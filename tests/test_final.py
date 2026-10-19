@@ -1,5 +1,6 @@
 import uuid
 
+from flame_hub.types import AnalysisBucketType
 import pytest
 from starlette import status
 
@@ -7,7 +8,7 @@ from project.dependencies import get_core_client, get_storage_client
 from tests.common.auth import issue_client_access_token, BearerAuth
 from tests.common.helpers import (
     next_random_bytes,
-    wait_for_analysis_bucket_file,
+    get_bucket_file,
     temporarily_change_dependency,
     MockClient,
 )
@@ -33,12 +34,11 @@ def test_200_submit_with_local_dp(test_client, rng, core_client, storage_client,
     )
 
     assert r.status_code == status.HTTP_204_NO_CONTENT, f"Unexpected status code: {r.status_code}."
-    assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
 
-    # Get most recent.
-    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysisId": analysis_id}).pop()
+    # Check for exactly one file and get it.
+    file = get_bucket_file(core_client, storage_client, analysis_id, AnalysisBucketType.RESULT)
     # Retrieve content.
-    result_file_content = next(storage_client.stream_bucket_file(analysis_bucket_file.bucket_file_id))
+    result_file_content = next(storage_client.stream_bucket_file(file.id))
     noisy_value = float(result_file_content.decode("utf-8"))
 
     assert result_file_content != b"", "Result file is empty."
@@ -125,12 +125,11 @@ def test_200_submit_to_upload(test_client, rng, core_client, storage_client, ana
     )
 
     assert r.status_code == status.HTTP_204_NO_CONTENT
-    assert wait_for_analysis_bucket_file(core_client, analysis_id), "Hub should return one result file."
 
     # Get most recent.
-    analysis_bucket_file = core_client.find_analysis_bucket_files(filter={"analysisId": analysis_id}).pop()
+    file = get_bucket_file(core_client, storage_client, analysis_id, AnalysisBucketType.RESULT)
     # Retrieve content.
-    result_file_content = next(storage_client.stream_bucket_file(analysis_bucket_file.bucket_file_id))
+    result_file_content = next(storage_client.stream_bucket_file(file.id))
 
     # Check file contents.
     assert result_file_content == blob, "Result file has incorrect content."
