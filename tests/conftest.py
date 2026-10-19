@@ -407,7 +407,7 @@ def project_id(project_id_factory):
 @pytest.fixture
 def analysis_id_factory(core_client_pwd_auth, storage_client, project_id):
     core_client = core_client_pwd_auth
-    analysis_ids, bucket_ids, analysis_bucket_ids = [], [], []
+    analysis_ids = []
 
     def _factory(_project_id=project_id):
         analysis_name = next_prefixed_name()
@@ -425,45 +425,15 @@ def analysis_id_factory(core_client_pwd_auth, storage_client, project_id):
         # Check if analysis exists.
         assert core_client.get_analysis(analysis.id) is not None
 
-        for bucket_type in flame_hub.types.AnalysisBucketType:
-            bucket_name = next_prefixed_name()
-            bucket = storage_client.create_bucket(name=bucket_name)
-
-            # Check if bucket exists.
-            assert storage_client.get_bucket(bucket.id) is not None
-
-            analysis_bucket = core_client.create_analysis_bucket(
-                bucket_type=bucket_type,
-                bucket_id=bucket.id,
-                analysis_id=analysis.id,
-            )
-
-            # Check if analysis bucket exists.
-            assert core_client.get_analysis_bucket(analysis_bucket.id) is not None
-
-            bucket_ids.append(bucket.id)
-            analysis_bucket_ids.append(analysis_bucket.id)
-
         analysis_ids.append(analysis.id)
 
         return analysis.id
 
     yield _factory
 
-    for analysis_bucket_id in analysis_bucket_ids:
-        core_client.delete_analysis_bucket(analysis_bucket_id)
-        assert core_client.get_analysis_bucket(analysis_bucket_id) is None
-
     for analysis_id in analysis_ids:
         core_client.delete_analysis(analysis_id)
         assert core_client.get_analysis(analysis_id) is None
-
-    for bucket_id in bucket_ids:
-        # Delete all bucket files before deleting the bucket itself.
-        for bucket_file in storage_client.find_bucket_files(filter={"bucketId": bucket_id}):
-            storage_client.delete_bucket_file(bucket_file.id)
-        storage_client.delete_bucket(bucket_id)
-        assert storage_client.get_bucket(bucket_id) is None
 
 
 @pytest.fixture
