@@ -19,6 +19,7 @@ from starlette.responses import StreamingResponse
 from project import crud
 from project.config import Settings
 from project.dependencies import (
+    get_analysis_id,
     get_client_id,
     get_settings,
     get_local_s3,
@@ -44,7 +45,7 @@ def tag_object(
     tag: str,
     db: pw.PostgresqlDatabase,
     project_id: uuid.UUID | str,
-    client_id: str,
+    analysis_id: str,
     object_id: uuid.UUID | str,
     filename: str | None = None,
 ):
@@ -55,15 +56,15 @@ def tag_object(
         # TODO more elegant solution for filename being None?
         try:
             result, _ = crud.Result.get_or_create(
-                client_id=client_id,
+                client_id=analysis_id,  # the `client_id` column holds the analysis id
                 object_id=object_id,
                 filename=filename or "data.bin",
             )
         except pw.IntegrityError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"The object ID {object_id} is already persisted for analysis {client_id}, but with a different "
-                f"filename than {filename or 'data.bin'}.",
+                detail=f"The object ID {object_id} is already persisted for analysis {analysis_id}, but with a "
+                f"different filename than {filename or 'data.bin'}.",
             )
         tag, _ = crud.Tag.get_or_create(tag_name=tag, project_id=project_id)
         crud.TaggedResult.get_or_create(tag=tag, result=result)
@@ -105,7 +106,7 @@ def _get_project_id_for_analysis_or_raise(core_client: flame_hub.CoreClient, ana
 
 
 def _get_object_from_s3(
-    s3: Minio, settings: Settings, project_id: str, object_id: uuid.UUID, client_id: str
+    s3: Minio, settings: Settings, project_id: str, object_id: uuid.UUID, analysis_id: str
 ) -> HTTPResponse:
     try:
         return s3.get_object(
@@ -114,7 +115,7 @@ def _get_object_from_s3(
         )
     except S3Error as e:
         logger.exception(
-            f"Could not get object `{object_id}` for client `{client_id}` which is associated to project "
+            f"Could not get object `{object_id}` for analysis `{analysis_id}` which is associated to project "
             f"`{project_id}`."
         )
 
@@ -138,7 +139,7 @@ def _get_object_from_s3(
     name="local.put",
 )
 async def submit_intermediate_result_to_local(
-    client_id: Annotated[str, Depends(get_client_id)],
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     file: Annotated[UploadFile, File()],
     settings: Annotated[Settings, Depends(get_settings)],
     s3: Annotated[Minio, Depends(get_local_s3)],
@@ -153,14 +154,14 @@ async def submit_intermediate_result_to_local(
     An optional tag can be supplied to group the file with other files."""
 
     # retrieve project id from analysis
-    project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
+    project_id = _get_project_id_for_analysis_or_raise(core_client, analysis_id)
 
     object_id = uuid.uuid4()
     object_name = f"local/{project_id}/{object_id}"
 
     if tag is not None:
         tag_object(
-            tag=tag, db=db, project_id=project_id, client_id=client_id, object_id=object_id, filename=file.filename
+            tag=tag, db=db, project_id=project_id, analysis_id=analysis_id, object_id=object_id, filename=file.filename
         )
 
     await run_in_threadpool(
@@ -249,7 +250,7 @@ async def delete_local_results(
     name="local.tags.get",
 )
 async def get_project_tags(
-    client_id: Annotated[str, Depends(get_client_id)],
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     request: Request,
@@ -257,7 +258,7 @@ async def get_project_tags(
     """Get a list of tags assigned to the project for an analysis.
     Returns a 200 on success."""
 
-    project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
+    project_id = _get_project_id_for_analysis_or_raise(core_client, analysis_id)
 
     with db.atomic():
         db_tags = crud.Tag.select().where(crud.Tag.project_id == project_id)
@@ -288,7 +289,7 @@ async def get_project_tags(
 async def create_object_tag(
     tag_name: str,
     object_id: uuid.UUID,
-    client_id: Annotated[str, Depends(get_client_id)],
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     settings: Annotated[Settings, Depends(get_settings)],
     db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     s3: Annotated[Minio, Depends(get_local_s3)],
@@ -299,7 +300,7 @@ async def create_object_tag(
     """Tag a specific object and return that file.
     Returns a 200 on success."""
 
-    project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
+    project_id = _get_project_id_for_analysis_or_raise(core_client, analysis_id)
 
     # Check if an object with that ID exists and properly release the connection afterward.
     s3_response = await run_in_threadpool(
@@ -308,17 +309,17 @@ async def create_object_tag(
         settings=settings,
         project_id=project_id,
         object_id=object_id,
-        client_id=client_id,
+        analysis_id=analysis_id,
     )
     s3_response.close()
     s3_response.release_conn()
 
-    tag_object(tag_name, db, project_id, client_id, object_id, filename)
+    tag_object(tag_name, db, project_id, analysis_id, object_id, filename)
 
     with db.atomic():
         result = (
             crud.Result.select()
-            .where((crud.Result.object_id == object_id) & (crud.Result.client_id == client_id))
+            .where((crud.Result.object_id == object_id) & (crud.Result.client_id == analysis_id))
             .get()
         )
 
@@ -337,7 +338,7 @@ async def create_object_tag(
 )
 async def get_results_by_project_tag(
     tag_name: str,
-    client_id: Annotated[str, Depends(get_client_id)],
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     db: Annotated[PooledPostgresqlDatabase, Depends(get_postgres_db)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     request: Request,
@@ -345,7 +346,7 @@ async def get_results_by_project_tag(
     """Get a list of files assigned to a tag.
     Returns a 200 on success."""
 
-    project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
+    project_id = _get_project_id_for_analysis_or_raise(core_client, analysis_id)
 
     with db.atomic():
         db_tagged_results = (
@@ -378,7 +379,7 @@ async def get_results_by_project_tag(
     name="local.object.get",
 )
 async def retrieve_intermediate_result_from_local(
-    client_id: Annotated[str, Depends(get_client_id)],
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     object_id: uuid.UUID,
     settings: Annotated[Settings, Depends(get_settings)],
     s3: Annotated[Minio, Depends(get_local_s3)],
@@ -387,7 +388,7 @@ async def retrieve_intermediate_result_from_local(
     """Get a local result as file."""
 
     # retrieve project id from analysis
-    project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
+    project_id = _get_project_id_for_analysis_or_raise(core_client, analysis_id)
 
     s3_response = await run_in_threadpool(
         _get_object_from_s3,
@@ -395,7 +396,7 @@ async def retrieve_intermediate_result_from_local(
         settings=settings,
         project_id=project_id,
         object_id=object_id,
-        client_id=client_id,
+        analysis_id=analysis_id,
     )
 
     # Manually iterate the response here to properly close the response because StreamingResponse does not do it
@@ -425,7 +426,7 @@ async def upload_local_file(
     object_id: uuid.UUID,
     request: Request,
     remote_node_id: str,
-    client_id: Annotated[str, Depends(get_client_id)],
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     s3: Annotated[Minio, Depends(get_local_s3)],
     settings: Annotated[Settings, Depends(get_settings)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
@@ -439,12 +440,14 @@ async def upload_local_file(
     with which it can be retrieved."""
 
     # Retrieve project id from analysis.
-    project_id = _get_project_id_for_analysis_or_raise(core_client, client_id)
+    project_id = _get_project_id_for_analysis_or_raise(core_client, analysis_id)
 
     # Check for filename in database. If there is no filename, use object_id per default.
     filename = str(object_id)
     with db.atomic():
-        result = crud.Result.select().where((crud.Result.object_id == object_id) & (crud.Result.client_id == client_id))
+        result = crud.Result.select().where(
+            (crud.Result.object_id == object_id) & (crud.Result.client_id == analysis_id)
+        )
         if result.count() == 1:
             filename = result.get().filename
 
@@ -454,7 +457,7 @@ async def upload_local_file(
         settings=settings,
         project_id=project_id,
         object_id=object_id,
-        client_id=client_id,
+        analysis_id=analysis_id,
     )
 
     try:
@@ -467,7 +470,7 @@ async def upload_local_file(
         return await submit_intermediate_result_to_hub(
             file=file,
             request=request,
-            client_id=client_id,
+            analysis_id=analysis_id,
             core_client=core_client,
             storage_client=storage_client,
             private_key=private_key,

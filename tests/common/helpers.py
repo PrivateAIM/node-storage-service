@@ -2,11 +2,15 @@ import random
 import string
 import time
 import uuid
+from types import SimpleNamespace
 from typing import Callable
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from flame_hub import CoreClient
+from flame_hub import CoreClient, StorageClient
+from flame_hub.types import AnalysisBucketType
+from flame_hub.models import BucketFile
+import pytest
 from starlette.testclient import TestClient
 
 from tests.common import env
@@ -85,16 +89,23 @@ def next_random_string(charset=string.ascii_letters, length: int = 20):
     return "".join([random.choice(charset) for _ in range(length)])
 
 
-def wait_for_analysis_bucket_file(core_client: CoreClient, analysis_id: str | uuid.UUID):
-    """After a file is uploaded, it takes some time until the Hub creates the corresponding analysis bucket file. This
-    function tries multiple times to retrieve the resource and returns True or False depending on if the resource is
-    available on the Hub."""
+def get_bucket_file(
+    core_client: CoreClient,
+    storage_client: StorageClient,
+    analysis_id: str | uuid.UUID,
+    bucket_type: AnalysisBucketType,
+) -> BucketFile:
+    """
+    Returns a file from a specific analysis bucket. Also checks if there is exactly one file present, since fixtures
+    always create new analyses.
+    """
+    analysis_buckets = core_client.find_analysis_buckets(filter={"analysisId": analysis_id})
+    analysis_bucket = [b for b in analysis_buckets if b.type == bucket_type][0]
+    files = storage_client.find_bucket_files(filter={"bucketId": analysis_bucket.bucket_id})
 
-    def wrapper():
-        analysis_bucket_files = core_client.find_analysis_bucket_files(filter={"analysisId": analysis_id})
-        return len(analysis_bucket_files) == 1
+    assert len(files) == 1, "There should be exactly one file in that bucket."
 
-    return eventually(wrapper)
+    return files.pop()
 
 
 def temporarily_change_dependency(test_client: TestClient, dependency: Callable, callback: Callable):
@@ -110,8 +121,21 @@ def temporarily_change_dependency(test_client: TestClient, dependency: Callable,
     return _reset
 
 
+def get_analysis_client_id(core_client: CoreClient, analysis_id: str | uuid.UUID) -> str:
+    """Return the ID of the Authup client the Hub provisioned for an analysis. Tokens of analyses carry this ID."""
+    client_id = core_client.get_analysis(analysis_id).client_id
+
+    if client_id is None:
+        pytest.fail(f"Hub did not provision an Authup client for analysis {analysis_id}")
+
+    return str(client_id)
+
+
 class MockClient:
     """Mock methods from CoreClient and StorageClient to provoke certain errors."""
+
+    def __init__(self, analysis_id: str | uuid.UUID | None = None):
+        self.analysis_id = analysis_id
 
     @staticmethod
     def upload_to_bucket(*args, **kwargs):
@@ -120,3 +144,7 @@ class MockClient:
     @staticmethod
     def find_analysis_buckets(*args, **kwargs):
         return []
+
+    def find_analyses(self, *args, **kwargs):
+        # Resolve any token to the analysis under test so that requests reach the route.
+        return [SimpleNamespace(id=self.analysis_id)]

@@ -26,7 +26,7 @@ def test_get_server_instance():
 
 
 @pytest.mark.live
-def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, analysis_id):
+def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, analysis_client_id):
     def raise_error(_):
         raise HubAPIError(
             message="Test Error",
@@ -40,7 +40,7 @@ def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, ana
     try:
         r = test_client.get(
             f"/intermediate/{uuid.uuid4()}",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
             params={
                 "remote_node_id": str(uuid.uuid4()),
             },
@@ -53,7 +53,7 @@ def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, ana
 
 
 @pytest.mark.live
-def test_database_exception_handler(test_client, analysis_id):
+def test_database_exception_handler(test_client, analysis_client_id):
     def override_postgres():
         return pw.PostgresqlDatabase("test")
 
@@ -63,7 +63,7 @@ def test_database_exception_handler(test_client, analysis_id):
     try:
         r = test_client.get(
             "/local/tags",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         )
 
         assert r.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -29,7 +29,7 @@ def test_200_encrypt_and_decrypt(
     test_client,
     core_client,
     storage_client,
-    analysis_id,
+    analysis_client_id,
     remote_node_and_private_key,
     this_node,
     blob,
@@ -39,7 +39,7 @@ def test_200_encrypt_and_decrypt(
     remote_node, remote_private_key = remote_node_and_private_key
     r = test_client.put(
         "/intermediate",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         files=wrap_bytes_for_request(blob),
         data={
             "remote_node_id": str(remote_node.id),
@@ -56,7 +56,7 @@ def test_200_encrypt_and_decrypt(
     try:
         r = test_client.get(
             f"{model.url.path}?{model.url.query}",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         )
     finally:
         reset_private_key()
@@ -71,7 +71,7 @@ def test_200_encrypt_and_decrypt(
 def test_400_submit_encrypted_no_remote_public_key(
     test_client,
     rng,
-    analysis_id,
+    analysis_client_id,
     core_client,
     realm_id,
 ):
@@ -80,7 +80,7 @@ def test_400_submit_encrypted_no_remote_public_key(
     try:
         r = test_client.put(
             "/intermediate",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
             files=wrap_bytes_for_request(next_random_bytes(rng)),
             data={
                 "remote_node_id": str(node.id),
@@ -105,11 +105,11 @@ def test_404_invalid_id(test_client):
     assert detail_of(r) == f"Object with ID {rand_uuid} does not exist"
 
 
-def test_404_no_remote_node(test_client, analysis_id, core_client, rng):
+def test_404_no_remote_node(test_client, analysis_client_id, core_client, rng):
     rand_uuid = str(uuid.uuid4())
     r = test_client.put(
         "/intermediate",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         files=wrap_bytes_for_request(next_random_bytes(rng)),
         data={
             "remote_node_id": rand_uuid,
@@ -120,7 +120,7 @@ def test_404_no_remote_node(test_client, analysis_id, core_client, rng):
     assert detail_of(r) == f"Remote node with ID {rand_uuid} does not exist."
 
 
-def test_404_submit_invalid_client_id(test_client, rng):
+def test_403_submit_invalid_client_id(test_client, rng):
     rand_uuid = str(uuid.uuid4())
 
     r = test_client.put(
@@ -132,14 +132,14 @@ def test_404_submit_invalid_client_id(test_client, rng):
         },
     )
 
-    assert r.status_code == status.HTTP_404_NOT_FOUND
-    assert detail_of(r) == f"Temp bucket for analysis with ID {rand_uuid} was not found"
+    assert r.status_code == status.HTTP_403_FORBIDDEN
+    assert detail_of(r) == "Token is not associated with an analysis"
 
 
 def test_400_decrypt_intermediate(
     test_client,
     core_client,
-    analysis_id,
+    analysis_client_id,
     this_node,
     remote_node_and_private_key,
     rng,
@@ -149,7 +149,7 @@ def test_400_decrypt_intermediate(
     remote_node, _ = remote_node_and_private_key
     r = test_client.put(
         "/intermediate",
-        auth=BearerAuth(issue_client_access_token(analysis_id)),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         files=wrap_bytes_for_request(blob),
         data={
             "remote_node_id": str(remote_node.id),
@@ -176,14 +176,14 @@ def test_400_decrypt_intermediate(
     )
 
 
-def test_404_analysis_bucket(test_client, rng, analysis_id):
-    reset_client = temporarily_change_dependency(test_client, get_core_client, lambda: MockClient())
+def test_404_analysis_bucket(test_client, rng, analysis_id, analysis_client_id):
+    reset_client = temporarily_change_dependency(test_client, get_core_client, lambda: MockClient(analysis_id))
     blob = next_random_bytes(rng)
 
     try:
         r = test_client.put(
             "/intermediate",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
             files=wrap_bytes_for_request(blob),
             data={
                 "remote_node_id": next_random_string(),
@@ -196,7 +196,7 @@ def test_404_analysis_bucket(test_client, rng, analysis_id):
         reset_client()
 
 
-def test_502_no_single_file(test_client, rng, analysis_id, remote_node_and_private_key):
+def test_502_no_single_file(test_client, rng, analysis_client_id, remote_node_and_private_key):
     reset_client = temporarily_change_dependency(test_client, get_storage_client, lambda: MockClient())
     blob = next_random_bytes(rng)
     remote_node, _ = remote_node_and_private_key
@@ -204,7 +204,7 @@ def test_502_no_single_file(test_client, rng, analysis_id, remote_node_and_priva
     try:
         r = test_client.put(
             "/intermediate",
-            auth=BearerAuth(issue_client_access_token(analysis_id)),
+            auth=BearerAuth(issue_client_access_token(analysis_client_id)),
             files=wrap_bytes_for_request(blob),
             data={
                 "remote_node_id": str(remote_node.id),
