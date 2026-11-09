@@ -2,16 +2,17 @@ name: Check source branch
 
 on:
   pull_request:
-    types: [opened, reopened, edited]
+    types: [opened, reopened, edited, synchronize]
     branches:
       - main
+      - develop
 
 jobs:
   check-source-branch:
     runs-on: ubuntu-latest
     steps:
       - name: Verify source branch
-        if: github.head_ref != 'develop'
+        if: github.base_ref == 'main' && github.head_ref != 'develop'
         run: |
           echo "Only 'develop' can be merged into 'main'"
           exit 1
