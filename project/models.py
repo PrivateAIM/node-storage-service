@@ -21,6 +21,7 @@ class AppState(BaseModel):
     node_id: uuid.UUID
     s3_client: Minio
     postgres: PooledPostgresqlDatabase
+    start_time: float
 
 
 class Author(BaseModel):
