@@ -2,11 +2,13 @@ import logging.config
 from contextlib import asynccontextmanager, ExitStack
 import ssl
 import uuid
+import time
+from typing import Annotated
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from flame_hub import CoreClient, StorageClient, HubAPIError
 from flame_hub.auth import ClientAuth
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
 import httpx2 as httpx
 from minio import Minio
 import peewee as pw
@@ -23,6 +25,7 @@ from project.models import AppState
 from project.routers import final, intermediate, local
 from project.version import __version__
 from project.utils import load_pyproject, load_readme
+from project.dependencies import get_start_time
 
 
 _app: FastAPI | None = None
@@ -163,6 +166,7 @@ async def lifespan(app: FastAPI):
             node_id=_get_node_id(s, core_client),
             s3_client=minio,
             postgres=postgres,
+            start_time=time.monotonic(),
         )
         logger.info("Building app state done.")
 
@@ -231,8 +235,11 @@ def get_server_instance():
     )
 
     @_app.get("/", operation_id="getInfo", tags=["info"], description="Get general info about this service")
-    async def info():
-        return {"version": __version__}
+    async def info(start_time: Annotated[float, Depends(get_start_time)]):
+        return {
+            "version": __version__,
+            "uptime": int(time.monotonic() - start_time),
+        }
 
     @_app.get("/healthz", operation_id="getHealth", tags=["healthz"], description="Check service readiness")
     async def do_healthcheck():

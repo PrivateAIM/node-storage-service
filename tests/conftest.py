@@ -5,6 +5,7 @@ import ssl
 import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import time
 
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_pem_private_key
 import flame_hub
@@ -29,6 +30,7 @@ from project.dependencies import (
     get_core_client,
     get_storage_client,
     get_settings,
+    get_start_time,
 )
 from project.migrations.scripts.router import init_router
 from project.server import get_server_instance, init_db
@@ -302,6 +304,9 @@ def test_app(
     app.dependency_overrides[get_ecdh_private_key] = override_ecdh_private_key
     app.dependency_overrides[get_core_client] = override_core_client
     app.dependency_overrides[get_storage_client] = override_storage_client
+
+    start_time = time.monotonic()
+    app.dependency_overrides[get_start_time] = lambda: start_time
 
     return app
 

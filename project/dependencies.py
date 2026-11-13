@@ -54,6 +54,10 @@ def get_ecdh_private_key(state: Annotated[AppState, Depends(get_app_state)]) -> 
     return state.ecdh_private_key
 
 
+def get_start_time(state: Annotated[AppState, Depends(get_app_state)]) -> float:
+    return state.start_time
+
+
 # TODO: It is not necessary to fetch JWKS on every request.
 async def get_auth_jwks(settings: Annotated[Settings, Depends(get_settings)]) -> jwk.JWKSet:
     if settings.oidc.skip_jwt_validation:
