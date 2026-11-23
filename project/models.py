@@ -4,9 +4,10 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from flame_hub import CoreClient, StorageClient
 from minio import Minio
 from playhouse.pool import PooledPostgresqlDatabase
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from project.config import Settings
+from project.jwks import JWKSCache
 
 
 class AppState(BaseModel):
@@ -22,6 +23,7 @@ class AppState(BaseModel):
     s3_client: Minio
     postgres: PooledPostgresqlDatabase
     start_time: float
+    jwks_cache: JWKSCache = Field(default_factory=lambda data: JWKSCache(jwks_url=str(data["settings"].oidc.certs_url)))
 
 
 class Author(BaseModel):

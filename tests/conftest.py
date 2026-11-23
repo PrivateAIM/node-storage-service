@@ -31,9 +31,11 @@ from project.dependencies import (
     get_storage_client,
     get_settings,
     get_start_time,
+    get_jwks_cache,
 )
 from project.migrations.scripts.router import init_router
 from project.server import get_server_instance, init_db
+from project.jwks import JWKSCache
 from tests.common import env
 from tests.common.auth import get_oid_test_jwk, get_test_ecdh_keypair
 from tests.common.helpers import (
@@ -304,6 +306,9 @@ def test_app(
     app.dependency_overrides[get_ecdh_private_key] = override_ecdh_private_key
     app.dependency_overrides[get_core_client] = override_core_client
     app.dependency_overrides[get_storage_client] = override_storage_client
+
+    jwks_cache = JWKSCache(jwks_url=str(Settings().oidc.certs_url))
+    app.dependency_overrides[get_jwks_cache] = lambda: jwks_cache
 
     start_time = time.monotonic()
     app.dependency_overrides[get_start_time] = lambda: start_time
