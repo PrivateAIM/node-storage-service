@@ -80,9 +80,11 @@ def peek_kid(token: str) -> str | None:
     try:
         kid = jws.JWS()
         kid.deserialize(token)
+        header = kid.jose_header
     except jws.InvalidJWSObject:
-        kid = None
-    else:
-        kid = kid.jose_header.get("kid")
+        return None
 
-    return kid
+    if not isinstance(header, dict):
+        return None
+
+    return header.get("kid")
