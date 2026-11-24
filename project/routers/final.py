@@ -56,7 +56,7 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
     noisy_file_content = str(noisy_value).encode("utf-8")
 
     analysis_bucket_lst = core_client.find_analysis_buckets(
-        filter={"analysisId": analysis_id, "type": AnalysisBucketType.RESULT},
+        filter={"analysisId": analysis_id, "type": AnalysisBucketType.RESULT.value},
     )
 
     if len(analysis_bucket_lst) == 0:
@@ -103,7 +103,7 @@ async def submit_final_result_to_hub(
     Returns a 204 on success."""
     # fetch analysis bucket
     analysis_bucket_lst = core_client.find_analysis_buckets(
-        filter={"analysisId": analysis_id, "type": AnalysisBucketType.RESULT},
+        filter={"analysisId": analysis_id, "type": AnalysisBucketType.RESULT.value},
     )
 
     if len(analysis_bucket_lst) == 0:

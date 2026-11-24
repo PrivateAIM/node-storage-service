@@ -77,7 +77,7 @@ async def submit_intermediate_result_to_hub(
     This endpoint uploads the file and returns a link with which it can be retrieved."""
 
     analysis_bucket_lst = core_client.find_analysis_buckets(
-        filter={"analysisId": analysis_id, "type": AnalysisBucketType.TEMP},
+        filter={"analysisId": analysis_id, "type": AnalysisBucketType.TEMP.value},
     )
 
     if len(analysis_bucket_lst) == 0:
@@ -147,7 +147,7 @@ async def retrieve_intermediate_result_from_hub(
     """Get an intermediate result as file from the FLAME Hub."""
     # We need the analysis bucket here to be able to mint the capability token.
     analysis_bucket_lst = core_client.find_analysis_buckets(
-        filter={"analysisId": analysis_id, "type": AnalysisBucketType.TEMP},
+        filter={"analysisId": analysis_id, "type": AnalysisBucketType.TEMP.value},
     )
 
     if len(analysis_bucket_lst) == 0:
