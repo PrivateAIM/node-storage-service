@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import urllib.parse
 import threading
 import time
+from unittest.mock import AsyncMock
 
 from fastapi import HTTPException, status
 import pytest
@@ -56,6 +57,20 @@ def serve_dummy_jwks_endpoint_factory(dummy_jwks_endpoint):
 @pytest.fixture
 def jwks_cache(dummy_jwks_endpoint) -> JWKSCache:
     return JWKSCache(jwks_url=dummy_jwks_endpoint)
+
+
+@pytest.mark.parametrize("now", [0.0, 10.0, 100.0, 4_000.0])
+@pytest.mark.parametrize("kid", [None, "unknown"])
+def test_cold_cache_downloads_regardless_of_uptime(monkeypatch, jwks_cache, now, kid):
+    monkeypatch.setattr("project.jwks.time.monotonic", lambda: now)
+    keys = jwk.JWKSet()
+    keys.add(get_oid_test_jwk())
+    download = AsyncMock(return_value=keys)
+    monkeypatch.setattr(jwks_cache, "download", download)
+
+    assert asyncio.run(jwks_cache.get(kid)) is keys
+    assert asyncio.run(jwks_cache.get(kid)) is keys
+    download.assert_awaited_once_with()
 
 
 def test_peek_id():

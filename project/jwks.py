@@ -23,8 +23,8 @@ class JWKSCache:
         self.min_refresh_interval = min_refresh_interval
         self.max_age = max_age
         self.jwks = jwk.JWKSet()
-        self.last_success = 0.0  # monotonic
-        self.last_attempt = 0.0  # monotonic, but includes failed attempts
+        self.last_success = float("-inf")  # No successful download yet.
+        self.last_attempt = float("-inf")  # No attempt yet; allow an immediate first refresh.
 
         self._lock = asyncio.Lock()
 
