@@ -428,6 +428,11 @@ def analysis_id_factory(core_client_pwd_auth, storage_client, project_id):
 
         assert eventually(_analysis_exists)
 
+        def _wait_for_buckets():
+            return len(core_client.find_analysis_buckets(filter={"analysis_id": str(analysis.id)})) == 3
+
+        assert eventually(_wait_for_buckets)
+
         # Check name and project ID of the analysis.
         assert analysis.name == analysis_name
         assert analysis.project_id == _project_id
