@@ -2,6 +2,7 @@ import logging
 from typing import Annotated
 
 import flame_hub
+from flame_hub.models import AnalysisBucketType
 from fastapi import APIRouter, Depends, UploadFile, HTTPException, Form
 from opendp.domains import atom_domain
 from opendp.measurements import make_laplace
@@ -13,6 +14,7 @@ from project.dependencies import (
     get_core_client,
     get_storage_client,
 )
+from project.utils import get_storage_cap_auth
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -53,7 +55,9 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
 
     noisy_file_content = str(noisy_value).encode("utf-8")
 
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": analysis_id, "type": "RESULT"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(
+        filter={"analysisId": analysis_id, "type": AnalysisBucketType.RESULT},
+    )
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(
@@ -63,6 +67,8 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
 
     analysis_bucket = analysis_bucket_lst.pop()
 
+    storage_auth = get_storage_cap_auth(core_client, analysis_id, analysis_bucket, "write")
+
     bucket_file_lst = storage_client.upload_to_bucket(
         analysis_bucket.bucket_id,
         {
@@ -70,6 +76,7 @@ async def submit_final_single_value_with_local_dp_result_to_hub(
             "content": noisy_file_content.decode("utf-8"),
             "content_type": file.content_type or "application/octet-stream",
         },
+        auth=storage_auth,
     )
 
     if len(bucket_file_lst) != 1:
@@ -95,7 +102,9 @@ async def submit_final_result_to_hub(
     """Upload a file as a final result to the FLAME Hub.
     Returns a 204 on success."""
     # fetch analysis bucket
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": analysis_id, "type": "RESULT"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(
+        filter={"analysisId": analysis_id, "type": AnalysisBucketType.RESULT},
+    )
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(
@@ -105,6 +114,8 @@ async def submit_final_result_to_hub(
 
     analysis_bucket = analysis_bucket_lst.pop()
 
+    storage_auth = get_storage_cap_auth(core_client, analysis_id, analysis_bucket, "write")
+
     # upload to remote
     bucket_file_lst = storage_client.upload_to_bucket(
         analysis_bucket.bucket_id,
@@ -113,6 +124,7 @@ async def submit_final_result_to_hub(
             "content": file.file,
             "content_type": file.content_type or "application/octet-stream",
         },
+        auth=storage_auth,
     )
 
     if len(bucket_file_lst) != 1:
