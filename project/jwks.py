@@ -28,8 +28,12 @@ class JWKSCache:
 
         self._lock = asyncio.Lock()
 
+    @property
+    def max_age_exceeded(self) -> bool:
+        return time.monotonic() - self.last_success > self.max_age
+
     def is_usable(self, kid: str | None) -> bool:
-        if time.monotonic() - self.last_success > self.max_age:
+        if self.max_age_exceeded:
             return False
         return kid is None or self.jwks.get_key(kid) is not None
 
@@ -64,9 +68,18 @@ class JWKSCache:
 
             now = time.monotonic()
             if now - self.last_attempt < self.min_refresh_interval:
-                # Unknown kid or expired cache, but we refreshed very recently so we serve what we have. The validation
-                # will reject the unknown kid.
-                return self.jwks
+                if self.max_age_exceeded:
+                    # Refreshes constantly failed so that the max age is exceeded.
+                    logger.exception("Keeps returning expired JWKS while max age is exceeded")
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail="Auth provider is unavailable",
+                    )
+                else:
+                    # Unknown kid or expired cache, but we refreshed very recently so we serve what we have. The
+                    # validation will reject the unknown kid.
+                    logger.warning("Returning expired JWKS")
+                    return self.jwks
 
             self.last_attempt = now
             self.jwks = await self.download()
