@@ -31,9 +31,11 @@ from project.dependencies import (
     get_storage_client,
     get_settings,
     get_start_time,
+    get_jwks_cache,
 )
 from project.migrations.scripts.router import init_router
 from project.server import get_server_instance, init_db
+from project.jwks import JWKSCache
 from tests.common import env
 from tests.common.auth import get_oid_test_jwk, get_test_ecdh_keypair
 from tests.common.helpers import (
@@ -305,6 +307,9 @@ def test_app(
     app.dependency_overrides[get_core_client] = override_core_client
     app.dependency_overrides[get_storage_client] = override_storage_client
 
+    jwks_cache = JWKSCache(jwks_url=str(Settings().oidc.certs_url))
+    app.dependency_overrides[get_jwks_cache] = lambda: jwks_cache
+
     start_time = time.monotonic()
     app.dependency_overrides[get_start_time] = lambda: start_time
 
@@ -422,6 +427,11 @@ def analysis_id_factory(core_client_pwd_auth, storage_client, project_id):
             return core_client.get_analysis(analysis.id) is not None
 
         assert eventually(_analysis_exists)
+
+        def _wait_for_buckets():
+            return len(core_client.find_analysis_buckets(filter={"analysis_id": str(analysis.id)})) == 3
+
+        assert eventually(_wait_for_buckets)
 
         # Check name and project ID of the analysis.
         assert analysis.name == analysis_name

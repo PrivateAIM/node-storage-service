@@ -63,9 +63,6 @@ def test_200_encrypt_and_decrypt(
 
     assert r.status_code == status.HTTP_200_OK, str(r.text)
     assert blob == r.read()
-    assert storage_client.get_bucket_file(bucket_file_id=model.object_id) is None, (
-        "File was not deleted from the Hub after its retrieval."
-    )
 
 
 def test_400_submit_encrypted_no_remote_public_key(
@@ -93,11 +90,11 @@ def test_400_submit_encrypted_no_remote_public_key(
     assert detail_of(r) == f"Remote node with ID {node.id} does not provide a public key"
 
 
-def test_404_invalid_id(test_client):
+def test_404_invalid_id(test_client, analysis_client_id):
     rand_uuid = str(uuid.uuid4())
     r = test_client.get(
         f"/intermediate/{rand_uuid}",
-        auth=BearerAuth(issue_client_access_token()),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         params={"remote_node_id": str(uuid.uuid4())},
     )
 
@@ -164,13 +161,13 @@ def test_400_decrypt_intermediate(
 
     r = test_client.get(
         model.url.path,
-        auth=BearerAuth(issue_client_access_token()),
+        auth=BearerAuth(issue_client_access_token(analysis_client_id)),
         params={"remote_node_id": this_node.id},
     )
 
     # The file is encrypted for a remote node and therefore cannot be decrypted by the node that encrypted the file
     # and of course all other nodes except that one remote node. Note that the local private key is not replaced.
-    assert r.status_code == status.HTTP_400_BAD_REQUEST
+    assert r.status_code == status.HTTP_400_BAD_REQUEST, r.text
     assert detail_of(r) == (
         f"Failed to decrypt file with ID {model.object_id} which was encrypted by node {this_node.id}."
     )

@@ -3,6 +3,7 @@ import uuid
 from typing import Annotated
 
 import flame_hub
+from flame_hub.models import AnalysisBucketType
 from flame_hub.types import UploadFile as StorageClientUploadFile
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -16,12 +17,12 @@ from starlette.responses import StreamingResponse
 from project import crypto
 from project.dependencies import (
     get_analysis_id,
-    get_client_id,
     get_core_client,
     get_storage_client,
     get_ecdh_private_key,
     get_node_id,
 )
+from project.utils import get_storage_cap_auth
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -75,7 +76,9 @@ async def submit_intermediate_result_to_hub(
     Returns a 200 on success.
     This endpoint uploads the file and returns a link with which it can be retrieved."""
 
-    analysis_bucket_lst = core_client.find_analysis_buckets(filter={"analysisId": analysis_id, "type": "TEMP"})
+    analysis_bucket_lst = core_client.find_analysis_buckets(
+        filter={"analysisId": analysis_id, "type": AnalysisBucketType.TEMP.value},
+    )
 
     if len(analysis_bucket_lst) == 0:
         raise HTTPException(
@@ -87,6 +90,8 @@ async def submit_intermediate_result_to_hub(
 
     # Get the public key of the remote node via the Hub.
     remote_public_key = get_remote_node_public_key(core_client, remote_node_id)
+
+    storage_auth = get_storage_cap_auth(core_client, analysis_id, analysis_bucket, "write")
 
     bucket_file_lst = await run_in_threadpool(
         storage_client.upload_to_bucket,
@@ -100,6 +105,7 @@ async def submit_intermediate_result_to_hub(
             ),
             content_type=file.content_type or "application/octet-stream",
         ),
+        auth=storage_auth,
     )
 
     if len(bucket_file_lst) != 1:
@@ -128,27 +134,46 @@ async def submit_intermediate_result_to_hub(
     "/{object_id}",
     summary="Get intermediate result as file from Hub",
     operation_id="getIntermediateResult",
-    # The client ID is not actually used here but required for authentication. Having this as a path dependency makes
-    # PyCharm stop complaining about unused parameters.
-    dependencies=[Depends(get_client_id)],
     name="intermediate.object.get",
 )
 async def retrieve_intermediate_result_from_hub(
     object_id: uuid.UUID,
     remote_node_id: str,
+    analysis_id: Annotated[str, Depends(get_analysis_id)],
     core_client: Annotated[flame_hub.CoreClient, Depends(get_core_client)],
     storage_client: Annotated[flame_hub.StorageClient, Depends(get_storage_client)],
     private_key: Annotated[ec.EllipticCurvePrivateKey, Depends(get_ecdh_private_key)],
 ):
     """Get an intermediate result as file from the FLAME Hub."""
-    if storage_client.get_bucket_file(object_id) is None:
+    # We need the analysis bucket here to be able to mint the capability token.
+    analysis_bucket_lst = core_client.find_analysis_buckets(
+        filter={"analysisId": analysis_id, "type": AnalysisBucketType.TEMP.value},
+    )
+
+    if len(analysis_bucket_lst) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Temp bucket for analysis with ID {analysis_id} was not found",
+        )
+
+    analysis_bucket = analysis_bucket_lst.pop()
+
+    storage_auth = get_storage_cap_auth(core_client, analysis_id, analysis_bucket, "read")
+
+    if storage_client.get_bucket_file(object_id, auth=storage_auth) is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Object with ID {object_id} does not exist",
         )
 
     # Test decryption first to raise a proper error.
-    encrypted_chunk = next(storage_client.stream_bucket_file(object_id, chunk_size=crypto.CHUNK_SIZE))
+    encrypted_chunk = next(
+        storage_client.stream_bucket_file(
+            object_id,
+            chunk_size=crypto.CHUNK_SIZE,
+            auth=storage_auth,
+        )
+    )
     remote_node_public_key = get_remote_node_public_key(core_client, remote_node_id)
     try:
         crypto.decrypt_default(private_key, remote_node_public_key, encrypted_chunk)
@@ -161,15 +186,10 @@ async def retrieve_intermediate_result_from_hub(
     # This is sync because then StreamingResponse will automatically run it in a thread pool.
     def _stream_file():
         try:
-            for chunk in storage_client.stream_bucket_file(object_id, chunk_size=crypto.CHUNK_SIZE):
+            for chunk in storage_client.stream_bucket_file(object_id, chunk_size=crypto.CHUNK_SIZE, auth=storage_auth):
                 yield crypto.decrypt_default(private_key, remote_node_public_key, chunk)
         except InvalidTag:
             logger.exception(f"Failed to decrypt file with ID {object_id} while streaming.")
             raise
-        else:
-            try:
-                storage_client.delete_bucket_file(bucket_file_id=object_id)
-            except flame_hub.HubAPIError:
-                logger.exception(f"Failed to delete bucket file {object_id}")
 
     return StreamingResponse(_stream_file())

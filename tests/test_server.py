@@ -27,7 +27,7 @@ def test_get_server_instance():
 
 @pytest.mark.live
 def test_hub_api_exception_handler(monkeypatch, test_client, storage_client, analysis_client_id):
-    def raise_error(_):
+    def raise_error(*_, **__):
         raise HubAPIError(
             message="Test Error",
             request=None,

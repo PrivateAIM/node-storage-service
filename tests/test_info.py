@@ -10,4 +10,4 @@ def test_200_info(test_client):
 
     assert d["version"] == __version__
     assert isinstance(d["uptime"], int)
-    assert d["uptime"] > 0
+    assert d["uptime"] >= 0  # Can be 0, if the tests are executed really fast.

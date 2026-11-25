@@ -5,7 +5,6 @@ import uuid
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from flame_hub import CoreClient, StorageClient
-import httpx2 as httpx
 from playhouse.pool import PooledPostgresqlDatabase
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -16,7 +15,7 @@ from starlette import status
 
 from project.config import Settings
 from project.models import AppState
-
+from project.jwks import peek_kid, JWKSCache
 
 security = HTTPBearer()
 logger = logging.getLogger(__name__)
@@ -58,27 +57,20 @@ def get_start_time(state: Annotated[AppState, Depends(get_app_state)]) -> float:
     return state.start_time
 
 
-# TODO: It is not necessary to fetch JWKS on every request.
-async def get_auth_jwks(settings: Annotated[Settings, Depends(get_settings)]) -> jwk.JWKSet:
+def get_jwks_cache(state: Annotated[AppState, Depends(get_app_state)]) -> JWKSCache:
+    return state.jwks_cache
+
+
+async def get_auth_jwks(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    jwks_cache: Annotated[JWKSCache, Depends(get_jwks_cache)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> jwk.JWKSet:
     if settings.oidc.skip_jwt_validation:
         logger.warning("Since JWT validation is skipped, an empty JWKS is returned")
         return jwk.JWKSet()
 
-    jwks_url = str(settings.oidc.certs_url)
-
-    async with httpx.AsyncClient() as client:
-        try:
-            r = await client.get(jwks_url)
-            r.raise_for_status()
-        except HTTPError:
-            logger.exception("Failed to read OIDC config")
-
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Auth provider is unavailable",
-            )
-
-    return jwk.JWKSet.from_json(r.text)
+    return await jwks_cache.get(peek_kid(credentials.credentials))
 
 
 def get_client_id(
